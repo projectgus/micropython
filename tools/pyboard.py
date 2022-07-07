@@ -476,8 +476,8 @@ class Pyboard:
         if data != b"OK":
             raise PyboardError("could not exec command (response: %r)" % data)
 
-    def exec_raw(self, command, timeout=10, data_consumer=None):
-        self.exec_raw_no_follow(command)
+    def exec_raw(self, command, timeout=10, data_consumer=None, is_bytecode=False):
+        self.exec_raw_no_follow(command, is_bytecode=is_bytecode)
         return self.follow(timeout, data_consumer)
 
     def eval(self, expression):
@@ -485,8 +485,8 @@ class Pyboard:
         ret = ret.strip()
         return ret
 
-    def exec_(self, command, data_consumer=None):
-        ret, ret_err = self.exec_raw(command, data_consumer=data_consumer)
+    def exec_(self, command, data_consumer=None, is_bytecode=False):
+        ret, ret_err = self.exec_raw(command, data_consumer=data_consumer, is_bytecode=is_bytecode)
         if ret_err:
             raise PyboardError("exception", ret, ret_err)
         return ret

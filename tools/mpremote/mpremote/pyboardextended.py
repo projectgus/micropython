@@ -620,7 +620,15 @@ class PyboardExtended(Pyboard):
     def mount_local(self, path, unsafe_links=False):
         fout = self.serial
         if self.eval('"RemoteFS" in globals()') == b"False":
-            self.exec_(fs_hook_code)
+
+            with open("/tmp/fs_hook_code.py", "w") as f:
+                f.write(fs_hook_code)
+            import subprocess
+            subprocess.run(["mpy-cross", "/tmp/fs_hook_code.py"])
+            with open("/tmp/fs_hook_code.mpy", "rb") as f:
+                fs_hook_binary = f.read()
+
+            self.exec_(fs_hook_binary, is_bytecode=True)
         self.exec_("__mount()")
         self.mounted = True
         self.cmd = PyboardCommand(self.serial, fout, path, unsafe_links=unsafe_links)
