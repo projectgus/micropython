@@ -105,6 +105,16 @@ CFLAGS += -fdata-sections -ffunction-sections
 LDFLAGS += -Wl,--gc-sections
 
 ifeq ($(LTO),1)
+
+# Warn if GCC version is older than 9, enabling LTO may not result in a working binary
+# (this is an approximate version, mis-links reported on gcc 7, gcc 8 might be fine)
+GCC_MIN_VERSION=9
+GCC_VERSION=$(shell $(CC) -dumpversion | cut -d'.' -f 1)
+GCC_VERSION_OK=$(shell (( $(GCC_VERSION) >= $(GCC_MIN_VERSION) )) && echo "OK")
+ifneq ("$(GCC_VERSION_OK)","OK")
+$(warning "WARNING: Older GCC version $(GCC_VERSION) may not produce correct output when LTO=1 is set. Recommend running make with LTO=0 flag or upgrading to newest available GCC.")
+endif
+
 CFLAGS += -flto=auto
 # LTO requires passing compiler flags to the linker as it will run the assembler.
 # To avoid risk of missing something relevant, pass all flags except for preprocessor args
