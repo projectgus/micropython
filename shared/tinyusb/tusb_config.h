@@ -129,6 +129,9 @@
 
 /* Patch to add second CDC interface follows */
 
+#undef CFG_TUD_CDC
+#define CFG_TUD_CDC             (2)
+
 #define USBD_ITF_CDC2 (2) // needs 2 interfaces
 #define USBD_CDC2_EP_CMD (0x83)
 #define USBD_CDC2_EP_OUT (0x04)
