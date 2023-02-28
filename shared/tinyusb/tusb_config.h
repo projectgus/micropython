@@ -127,6 +127,22 @@
 #define USBD_EP_STATIC_MAX (0)
 #endif
 
+/* Patch to add second CDC interface follows */
+
+#define USBD_ITF_CDC2 (2) // needs 2 interfaces
+#define USBD_CDC2_EP_CMD (0x83)
+#define USBD_CDC2_EP_OUT (0x04)
+#define USBD_CDC2_EP_IN (0x84)
+
+#undef USBD_ITF_STATIC_MAX
+#define USBD_ITF_STATIC_MAX (USBD_ITF_CDC2 + 2)
+
+#undef USBD_STATIC_DESC_LEN
+#define USBD_STATIC_DESC_LEN (TUD_CONFIG_DESC_LEN +                     \
+    (CFG_TUD_CDC ? (TUD_CDC_DESC_LEN + TUD_CDC_DESC_LEN) : 0) +  \
+    (CFG_TUD_MSC ? (TUD_MSC_DESC_LEN) : 0)    \
+    )
+
 #endif // MICROPY_HW_ENABLE_USBDEV
 
 #endif // MICROPY_INCLUDED_SHARED_TINYUSB_TUSB_CONFIG_H
