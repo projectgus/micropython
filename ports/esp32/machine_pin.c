@@ -295,7 +295,7 @@ STATIC mp_obj_t machine_pin_obj_init_helper(const machine_pin_obj_t *self, size_
     #endif
 
     // configure the pin for gpio
-    gpio_pad_select_gpio(self->id);
+    esp_rom_gpio_pad_select_gpio(self->id);
 
     // set initial value (do this before configuring mode/pull)
     if (args[ARG_value].u_obj != MP_OBJ_NULL) {
@@ -423,7 +423,7 @@ STATIC mp_obj_t machine_pin_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
     enum { ARG_handler, ARG_trigger, ARG_wake };
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_handler, MP_ARG_OBJ, {.u_obj = mp_const_none} },
-        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = GPIO_PIN_INTR_POSEDGE | GPIO_PIN_INTR_NEGEDGE} },
+        { MP_QSTR_trigger, MP_ARG_INT, {.u_int = GPIO_INTR_POSEDGE | GPIO_INTR_NEGEDGE} },
         { MP_QSTR_wake, MP_ARG_OBJ, {.u_obj = mp_const_none} },
     };
     machine_pin_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
@@ -436,7 +436,7 @@ STATIC mp_obj_t machine_pin_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
         uint32_t trigger = args[ARG_trigger].u_int;
         mp_obj_t wake_obj = args[ARG_wake].u_obj;
 
-        if ((trigger == GPIO_PIN_INTR_LOLEVEL || trigger == GPIO_PIN_INTR_HILEVEL) && wake_obj != mp_const_none) {
+        if ((trigger == GPIO_INTR_LOW_LEVEL || trigger == GPIO_INTR_HIGH_LEVEL) && wake_obj != mp_const_none) {
             mp_int_t wake;
             if (mp_obj_get_int_maybe(wake_obj, &wake)) {
                 if (wake < 2 || wake > 7) {
@@ -460,7 +460,7 @@ STATIC mp_obj_t machine_pin_irq(size_t n_args, const mp_obj_t *pos_args, mp_map_
                 mp_raise_ValueError(MP_ERROR_TEXT("no resources"));
             }
 
-            machine_rtc_config.ext0_level = trigger == GPIO_PIN_INTR_LOLEVEL ? 0 : 1;
+            machine_rtc_config.ext0_level = trigger == GPIO_INTR_LOW_LEVEL ? 0 : 1;
             machine_rtc_config.ext0_wake_types = wake;
         } else {
             if (machine_rtc_config.ext0_pin == self->id) {
@@ -497,10 +497,10 @@ STATIC const mp_rom_map_elem_t machine_pin_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_OPEN_DRAIN), MP_ROM_INT(GPIO_MODE_INPUT_OUTPUT_OD) },
     { MP_ROM_QSTR(MP_QSTR_PULL_UP), MP_ROM_INT(GPIO_PULL_UP) },
     { MP_ROM_QSTR(MP_QSTR_PULL_DOWN), MP_ROM_INT(GPIO_PULL_DOWN) },
-    { MP_ROM_QSTR(MP_QSTR_IRQ_RISING), MP_ROM_INT(GPIO_PIN_INTR_POSEDGE) },
-    { MP_ROM_QSTR(MP_QSTR_IRQ_FALLING), MP_ROM_INT(GPIO_PIN_INTR_NEGEDGE) },
-    { MP_ROM_QSTR(MP_QSTR_WAKE_LOW), MP_ROM_INT(GPIO_PIN_INTR_LOLEVEL) },
-    { MP_ROM_QSTR(MP_QSTR_WAKE_HIGH), MP_ROM_INT(GPIO_PIN_INTR_HILEVEL) },
+    { MP_ROM_QSTR(MP_QSTR_IRQ_RISING), MP_ROM_INT(GPIO_INTR_POSEDGE) },
+    { MP_ROM_QSTR(MP_QSTR_IRQ_FALLING), MP_ROM_INT(GPIO_INTR_NEGEDGE) },
+    { MP_ROM_QSTR(MP_QSTR_WAKE_LOW), MP_ROM_INT(GPIO_INTR_LOW_LEVEL) },
+    { MP_ROM_QSTR(MP_QSTR_WAKE_HIGH), MP_ROM_INT(GPIO_INTR_HIGH_LEVEL) },
     { MP_ROM_QSTR(MP_QSTR_DRIVE_0), MP_ROM_INT(GPIO_DRIVE_CAP_0) },
     { MP_ROM_QSTR(MP_QSTR_DRIVE_1), MP_ROM_INT(GPIO_DRIVE_CAP_1) },
     { MP_ROM_QSTR(MP_QSTR_DRIVE_2), MP_ROM_INT(GPIO_DRIVE_CAP_2) },
@@ -709,7 +709,7 @@ STATIC mp_obj_t machine_pin_irq_call(mp_obj_t self_in, size_t n_args, size_t n_k
 
 STATIC mp_obj_t machine_pin_irq_trigger(size_t n_args, const mp_obj_t *args) {
     machine_pin_irq_obj_t *self = args[0];
-    uint32_t orig_trig = GPIO.pin[self->id].int_type;
+    uint32_t orig_trig = 0;//GPIO.pin[self->id].int_type; TODO
     if (n_args == 2) {
         // set trigger
         gpio_set_intr_type(self->id, mp_obj_get_int(args[1]));

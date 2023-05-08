@@ -38,9 +38,10 @@
 #include "shared/netutils/netutils.h"
 #include "modnetwork.h"
 
-#include "esp_wifi.h"
 #include "esp_log.h"
-#include "lwip/dns.h"
+#include "esp_netif.h"
+#include "esp_wifi.h"
+//#include "lwip/dns.h"
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 1, 0)
 #define DNS_MAIN TCPIP_ADAPTER_DNS_MAIN
@@ -80,6 +81,7 @@ NORETURN void esp_exceptions_helper(esp_err_t e) {
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("Wifi Would Block"));
         case ESP_ERR_WIFI_NOT_CONNECT:
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("Wifi Not Connected"));
+            #if 0
         case ESP_ERR_TCPIP_ADAPTER_INVALID_PARAMS:
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("TCP/IP Invalid Parameters"));
         case ESP_ERR_TCPIP_ADAPTER_IF_NOT_READY:
@@ -88,6 +90,7 @@ NORETURN void esp_exceptions_helper(esp_err_t e) {
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("TCP/IP DHCP Client Start Failed"));
         case ESP_ERR_TCPIP_ADAPTER_NO_MEM:
             mp_raise_OSError(MP_ENOMEM);
+            #endif
         default:
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("Wifi Unknown Error 0x%04x"), e);
     }
@@ -95,7 +98,9 @@ NORETURN void esp_exceptions_helper(esp_err_t e) {
 
 // This function is called by the system-event task and so runs in a different
 // thread to the main MicroPython task.  It must not raise any Python exceptions.
-static esp_err_t event_handler(void *ctx, system_event_t *event) {
+static void event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+    printf("event: %s %d\n", event_base, (int)event_id);
+    #if 0
     switch (event->event_id) {
         #if MICROPY_PY_NETWORK_WLAN
         case SYSTEM_EVENT_STA_START:
@@ -128,15 +133,16 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
             break;
     }
     return ESP_OK;
+    #endif
 }
 
 STATIC mp_obj_t esp_initialize() {
     static int initialized = 0;
     if (!initialized) {
         ESP_LOGD("modnetwork", "Initializing TCP/IP");
-        tcpip_adapter_init();
+        esp_exceptions(esp_netif_init());
         ESP_LOGD("modnetwork", "Initializing Event Loop");
-        esp_exceptions(esp_event_loop_init(event_handler, NULL));
+        esp_exceptions(esp_event_handler_instance_register(ESP_EVENT_ANY_BASE, ESP_EVENT_ANY_ID, event_handler, NULL, NULL));
         ESP_LOGD("modnetwork", "esp_event_loop_init done");
         initialized = 1;
     }
@@ -146,10 +152,10 @@ MP_DEFINE_CONST_FUN_OBJ_0(esp_network_initialize_obj, esp_initialize);
 
 STATIC mp_obj_t esp_ifconfig(size_t n_args, const mp_obj_t *args) {
     wlan_if_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    tcpip_adapter_ip_info_t info;
-    tcpip_adapter_dns_info_t dns_info;
-    tcpip_adapter_get_ip_info(self->if_id, &info);
-    tcpip_adapter_get_dns_info(self->if_id, DNS_MAIN, &dns_info);
+    esp_netif_ip_info_t info;
+    esp_netif_dns_info_t dns_info;
+    esp_netif_get_ip_info(self->netif, &info);
+    esp_netif_get_dns_info(self->netif, ESP_NETIF_DNS_MAIN, &dns_info);
     if (n_args == 1) {
         // get
         mp_obj_t tuple[4] = {
@@ -161,6 +167,7 @@ STATIC mp_obj_t esp_ifconfig(size_t n_args, const mp_obj_t *args) {
         return mp_obj_new_tuple(4, tuple);
     } else {
         // set
+        #if 0
         if (mp_obj_is_type(args[1], &mp_type_tuple) || mp_obj_is_type(args[1], &mp_type_list)) {
             mp_obj_t *items;
             mp_obj_get_array_fixed_n(args[1], 4, &items);
@@ -178,14 +185,14 @@ STATIC mp_obj_t esp_ifconfig(size_t n_args, const mp_obj_t *args) {
             netutils_parse_ipv4_addr(items[2], (void *)&info.gw, NETUTILS_BIG);
             netutils_parse_ipv4_addr(items[3], (void *)&dns_info.ip, NETUTILS_BIG);
             // To set a static IP we have to disable DHCP first
-            if (self->if_id == WIFI_IF_STA || self->if_id == ESP_IF_ETH) {
-                esp_err_t e = tcpip_adapter_dhcpc_stop(self->if_id);
+            if (self->netif == WIFI_IF_STA || self->netif == ESP_IF_ETH) {
+                esp_err_t e = tcpip_adapter_dhcpc_stop(self->netif);
                 if (e != ESP_OK && e != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
                     esp_exceptions_helper(e);
                 }
-                esp_exceptions(tcpip_adapter_set_ip_info(self->if_id, &info));
-                esp_exceptions(tcpip_adapter_set_dns_info(self->if_id, DNS_MAIN, &dns_info));
-            } else if (self->if_id == WIFI_IF_AP) {
+                esp_exceptions(tcpip_adapter_set_ip_info(self->netif, &info));
+                esp_exceptions(tcpip_adapter_set_dns_info(self->netif, DNS_MAIN, &dns_info));
+            } else if (self->netif == WIFI_IF_AP) {
                 esp_err_t e = tcpip_adapter_dhcps_stop(WIFI_IF_AP);
                 if (e != ESP_OK && e != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
                     esp_exceptions_helper(e);
@@ -197,11 +204,12 @@ STATIC mp_obj_t esp_ifconfig(size_t n_args, const mp_obj_t *args) {
         } else {
             // check for the correct string
             const char *mode = mp_obj_str_get_str(args[1]);
-            if ((self->if_id != WIFI_IF_STA && self->if_id != ESP_IF_ETH) || strcmp("dhcp", mode)) {
+            if ((self->netif != WIFI_IF_STA && self->netif != ESP_IF_ETH) || strcmp("dhcp", mode)) {
                 mp_raise_ValueError(MP_ERROR_TEXT("invalid arguments"));
             }
-            esp_exceptions(tcpip_adapter_dhcpc_start(self->if_id));
+            esp_exceptions(tcpip_adapter_dhcpc_start(self->netif));
         }
+        #endif
         return mp_const_none;
     }
 }
@@ -212,9 +220,12 @@ STATIC mp_obj_t esp_phy_mode(size_t n_args, const mp_obj_t *args) {
 }
 MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(esp_network_phy_mode_obj, 0, 1, esp_phy_mode);
 
+/*
+   TODO
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
 #define TEST_WIFI_AUTH_MAX 9
 #else
 #define TEST_WIFI_AUTH_MAX 8
 #endif
 _Static_assert(WIFI_AUTH_MAX == TEST_WIFI_AUTH_MAX, "Synchronize WIFI_AUTH_XXX constants with the ESP-IDF. Look at esp-idf/components/esp_wifi/include/esp_wifi_types.h");
+*/

@@ -161,9 +161,9 @@ STATIC mp_obj_t esp32_raw_temperature(void) {
     CLEAR_PERI_REG_MASK(SENS_SAR_TSENS_CTRL_REG, SENS_TSENS_DUMP_OUT);
     SET_PERI_REG_MASK(SENS_SAR_TSENS_CTRL_REG, SENS_TSENS_POWER_UP_FORCE);
     SET_PERI_REG_MASK(SENS_SAR_TSENS_CTRL_REG, SENS_TSENS_POWER_UP);
-    ets_delay_us(100);
+    esp_rom_delay_us(100);
     SET_PERI_REG_MASK(SENS_SAR_TSENS_CTRL_REG, SENS_TSENS_DUMP_OUT);
-    ets_delay_us(5);
+    esp_rom_delay_us(5);
     int res = GET_PERI_REG_BITS2(SENS_SAR_SLAVE_ADDR3_REG, SENS_TSENS_OUT, SENS_TSENS_OUT_S);
 
     return mp_obj_new_int(res);
@@ -171,8 +171,8 @@ STATIC mp_obj_t esp32_raw_temperature(void) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(esp32_raw_temperature_obj, esp32_raw_temperature);
 
 STATIC mp_obj_t esp32_hall_sensor(void) {
-    adc1_config_width(ADC_WIDTH_12Bit);
-    return MP_OBJ_NEW_SMALL_INT(hall_sensor_read());
+    //adc1_config_width(ADC_WIDTH_12Bit); TODO
+    return MP_OBJ_NEW_SMALL_INT(0);//TODO hall_sensor_read());
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(esp32_hall_sensor_obj, esp32_hall_sensor);
 

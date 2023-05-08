@@ -45,7 +45,7 @@
 #define TIMER_DIVIDER  8
 
 // TIMER_BASE_CLK is normally 80MHz. TIMER_DIVIDER ought to divide this exactly
-#define TIMER_SCALE    (TIMER_BASE_CLK / TIMER_DIVIDER)
+#define TIMER_SCALE    (APB_CLK_FREQ / TIMER_DIVIDER)
 
 #define TIMER_FLAGS    0
 

@@ -28,6 +28,10 @@
 #include "py/mphal.h"
 #include "modesp32.h"
 
+#include "rom/gpio.h"
+#include "soc/gpio_reg.h"
+#include "soc/gpio_sig_map.h"
+
 #if MICROPY_PY_MACHINE_BITSTREAM
 
 /******************************************************************************/
@@ -52,7 +56,7 @@ STATIC void IRAM_ATTR machine_bitstream_high_low_bitbang(mp_hal_pin_obj_t pin, u
     }
 
     // Convert ns to cpu ticks [high_time_0, period_0, high_time_1, period_1].
-    uint32_t fcpu_mhz = ets_get_cpu_frequency();
+    uint32_t fcpu_mhz = esp_rom_get_cpu_ticks_per_us();
     for (size_t i = 0; i < 4; ++i) {
         timing_ns[i] = fcpu_mhz * timing_ns[i] / 1000;
         if (timing_ns[i] > NS_TICKS_OVERHEAD) {
@@ -193,7 +197,7 @@ STATIC void machine_bitstream_high_low_rmt(mp_hal_pin_obj_t pin, uint32_t *timin
     check_esp_err(rmt_driver_uninstall(config.channel));
 
     // Cancel RMT output to GPIO pin.
-    gpio_matrix_out(pin, SIG_GPIO_OUT_IDX, false, false);
+    esp_rom_gpio_connect_out_signal(pin, SIG_GPIO_OUT_IDX, false, false);
 }
 
 /******************************************************************************/

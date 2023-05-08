@@ -9,7 +9,7 @@ include(${MICROPY_DIR}/py/py.cmake)
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     # Enable extmod components that will be configured by extmod.cmake.
     # A board may also have enabled additional components.
-    set(MICROPY_PY_BTREE ON)
+    #set(MICROPY_PY_BTREE ON)
 
     include(${MICROPY_DIR}/py/usermod.cmake)
     include(${MICROPY_DIR}/extmod/extmod.cmake)
@@ -34,7 +34,7 @@ set(MICROPY_SOURCE_LIB
     ${MICROPY_DIR}/lib/littlefs/lfs1_util.c
     ${MICROPY_DIR}/lib/littlefs/lfs2.c
     ${MICROPY_DIR}/lib/littlefs/lfs2_util.c
-    ${MICROPY_DIR}/lib/mbedtls_errors/esp32_mbedtls_errors.c
+    #${MICROPY_DIR}/lib/mbedtls_errors/esp32_mbedtls_errors.c
     ${MICROPY_DIR}/lib/oofatfs/ff.c
     ${MICROPY_DIR}/lib/oofatfs/ffunicode.c
 )
@@ -102,25 +102,27 @@ set(IDF_COMPONENTS
     bootloader_support
     bt
     driver
-    esp_adc_cal
+    esp_adc
+    esp_app_format
     esp_common
     esp_eth
     esp_event
+    esp_partition
+    esp_psram
     esp_ringbuf
     esp_rom
+    esp_system
     esp_wifi
     freertos
     heap
     log
     lwip
     mbedtls
-    mdns
     newlib
     nvs_flash
     sdmmc
     soc
     spi_flash
-    tcpip_adapter
     ulp
     vfs
     xtensa
@@ -142,15 +144,11 @@ if(IDF_VERSION_MINOR GREATER_EQUAL 3 OR IDF_VERSION_MAJOR GREATER_EQUAL 5)
 endif()
 
 if(IDF_TARGET STREQUAL "esp32")
-    list(APPEND IDF_COMPONENTS esp32)
 elseif(IDF_TARGET STREQUAL "esp32c3")
-    list(APPEND IDF_COMPONENTS esp32c3)
     list(APPEND IDF_COMPONENTS riscv)
 elseif(IDF_TARGET STREQUAL "esp32s2")
-    list(APPEND IDF_COMPONENTS esp32s2)
     list(APPEND IDF_COMPONENTS tinyusb)
 elseif(IDF_TARGET STREQUAL "esp32s3")
-    list(APPEND IDF_COMPONENTS esp32s3)
     list(APPEND IDF_COMPONENTS tinyusb)
 endif()
 
@@ -204,12 +202,13 @@ target_include_directories(${MICROPY_TARGET} PUBLIC
 )
 
 # Add additional extmod and usermod components.
-target_link_libraries(${MICROPY_TARGET} micropy_extmod_btree)
+#target_link_libraries(${MICROPY_TARGET} micropy_extmod_btree) TODO
 target_link_libraries(${MICROPY_TARGET} usermod)
 
 # Collect all of the include directories and compile definitions for the IDF components.
 foreach(comp ${IDF_COMPONENTS})
     micropy_gather_target_properties(__idf_${comp})
+    micropy_gather_target_properties(${comp})
 endforeach()
 
 if(IDF_VERSION_MINOR GREATER_EQUAL 2 OR IDF_VERSION_MAJOR GREATER_EQUAL 5)

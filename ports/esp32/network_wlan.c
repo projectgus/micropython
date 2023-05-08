@@ -41,7 +41,6 @@
 
 #include "esp_wifi.h"
 #include "esp_log.h"
-#include "mdns.h"
 
 #if MICROPY_PY_NETWORK_WLAN
 
@@ -49,8 +48,10 @@
 #error WIFI_MODE_STA and WIFI_MODE_AP are supposed to be bitfields!
 #endif
 
-STATIC const wlan_if_obj_t wlan_sta_obj;
-STATIC const wlan_if_obj_t wlan_ap_obj;
+const mp_obj_type_t wlan_if_type;
+
+STATIC wlan_if_obj_t wlan_sta_obj;
+STATIC wlan_if_obj_t wlan_ap_obj;
 
 // Set to "true" if esp_wifi_start() was called
 static bool wifi_started = false;
@@ -73,6 +74,7 @@ static bool mdns_initialised = false;
 static uint8_t conf_wifi_sta_reconnects = 0;
 static uint8_t wifi_sta_reconnects;
 
+#if 0 // TODO
 // This function is called by the system-event task and so runs in a different
 // thread to the main MicroPython task.  It must not raise any Python exceptions.
 void network_wlan_event_handler(system_event_t *event) {
@@ -151,6 +153,7 @@ void network_wlan_event_handler(system_event_t *event) {
             break;
     }
 }
+#endif
 
 STATIC void require_if(mp_obj_t wlan_if, int if_no) {
     wlan_if_obj_t *self = MP_OBJ_TO_PTR(wlan_if);
@@ -159,13 +162,22 @@ STATIC void require_if(mp_obj_t wlan_if, int if_no) {
     }
 }
 
-void esp_initialise_wifi() {
+void esp_initialise_wifi(void) {
     static int wifi_initialized = 0;
     if (!wifi_initialized) {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_LOGD("modnetwork", "Initializing WiFi");
         esp_exceptions(esp_wifi_init(&cfg));
         esp_exceptions(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+        wlan_sta_obj.base.type = &wlan_if_type;
+        wlan_sta_obj.if_id = WIFI_IF_STA;
+        wlan_sta_obj.netif = esp_netif_create_default_wifi_sta();
+
+        wlan_ap_obj.base.type = &wlan_if_type;
+        wlan_sta_obj.if_id = WIFI_IF_AP;
+        wlan_ap_obj.netif = esp_netif_create_default_wifi_ap();
+
         ESP_LOGD("modnetwork", "Initialized");
         wifi_initialized = 1;
     }
@@ -195,7 +207,7 @@ STATIC mp_obj_t network_wlan_active(size_t n_args, const mp_obj_t *args) {
         esp_exceptions(esp_wifi_get_mode(&mode));
     }
 
-    int bit = (self->if_id == WIFI_IF_STA) ? WIFI_MODE_STA : WIFI_MODE_AP;
+    int bit = (self->netif == WIFI_IF_STA) ? WIFI_MODE_STA : WIFI_MODE_AP;
 
     if (n_args > 1) {
         bool active = mp_obj_is_true(args[1]);
@@ -261,7 +273,7 @@ STATIC mp_obj_t network_wlan_connect(size_t n_args, const mp_obj_t *pos_args, mp
         esp_exceptions(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_sta_config));
     }
 
-    esp_exceptions(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, mod_network_hostname));
+    esp_exceptions(esp_netif_set_hostname(wlan_sta_obj.netif, mod_network_hostname));
 
     wifi_sta_reconnects = 0;
     // connect to the WiFi AP
@@ -284,7 +296,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(network_wlan_disconnect_obj, network_wlan_disco
 STATIC mp_obj_t network_wlan_status(size_t n_args, const mp_obj_t *args) {
     wlan_if_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1) {
-        if (self->if_id == WIFI_IF_STA) {
+        if (self->netif == WIFI_IF_STA) {
             // Case of no arg is only for the STA interface
             if (wifi_sta_connected) {
                 // Happy path, connected with IP
@@ -382,7 +394,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(network_wlan_scan_obj, network_wlan_scan);
 
 STATIC mp_obj_t network_wlan_isconnected(mp_obj_t self_in) {
     wlan_if_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    if (self->if_id == WIFI_IF_STA) {
+    if (self->netif == WIFI_IF_STA) {
         return mp_obj_new_bool(wifi_sta_connected);
     } else {
         wifi_sta_list_t sta;
@@ -651,8 +663,5 @@ MP_DEFINE_CONST_OBJ_TYPE(
     MP_TYPE_FLAG_NONE,
     locals_dict, &wlan_if_locals_dict
     );
-
-STATIC const wlan_if_obj_t wlan_sta_obj = {{&wlan_if_type}, WIFI_IF_STA};
-STATIC const wlan_if_obj_t wlan_ap_obj = {{&wlan_if_type}, WIFI_IF_AP};
 
 #endif // MICROPY_PY_NETWORK_WLAN

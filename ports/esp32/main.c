@@ -35,16 +35,8 @@
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "esp_task.h"
-#include "soc/cpu.h"
 #include "esp_log.h"
-
-#if CONFIG_IDF_TARGET_ESP32
-#include "esp32/spiram.h"
-#elif CONFIG_IDF_TARGET_ESP32S2
-#include "esp32s2/spiram.h"
-#elif CONFIG_IDF_TARGET_ESP32S3
-#include "esp32s3/spiram.h"
-#endif
+#include "esp_psram.h"
 
 #include "py/stackctrl.h"
 #include "py/nlr.h"
@@ -88,7 +80,7 @@ int vprintf_null(const char *format, va_list ap) {
 }
 
 void mp_task(void *pvParameter) {
-    volatile uint32_t sp = (uint32_t)get_sp();
+    volatile uint32_t sp = (uint32_t)esp_cpu_get_sp();
     #if MICROPY_PY_THREAD
     mp_thread_init(pxTaskGetStackStart(NULL), MP_TASK_STACK_SIZE / sizeof(uintptr_t));
     #endif
