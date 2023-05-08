@@ -80,6 +80,9 @@ STATIC mp_obj_t uhashlib_sha256_update(mp_obj_t self_in, mp_obj_t arg);
 #define mbedtls_sha256_update_ret mbedtls_sha256_update
 #define mbedtls_sha256_finish_ret mbedtls_sha256_finish
 #endif
+#define mbedtls_sha256_starts_ret mbedtls_sha256_starts
+#define mbedtls_sha256_update_ret mbedtls_sha256_update
+#define mbedtls_sha256_finish_ret mbedtls_sha256_finish
 
 STATIC mp_obj_t uhashlib_sha256_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 0, 1, false);
@@ -208,6 +211,9 @@ STATIC mp_obj_t uhashlib_sha1_digest(mp_obj_t self_in) {
 #define mbedtls_sha1_update_ret mbedtls_sha1_update
 #define mbedtls_sha1_finish_ret mbedtls_sha1_finish
 #endif
+#define mbedtls_sha1_starts_ret mbedtls_sha1_starts
+#define mbedtls_sha1_update_ret mbedtls_sha1_update
+#define mbedtls_sha1_finish_ret mbedtls_sha1_finish
 
 STATIC mp_obj_t uhashlib_sha1_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 0, 1, false);
