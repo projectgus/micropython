@@ -337,7 +337,33 @@ SRC_THIRDPARTY_C += $(addprefix $(WIZNET5K_DIR)/,\
 	Internet/DHCP/dhcp.c \
 	)
 endif
+endif # MICROPY_PY_NETWORK_WIZNET5K
+
+ifeq ($(MICROPY_PY_NETWORK_ESP_HOSTED),1)
+ESP_HOSTED_DIR = drivers/esp-hosted
+PROTOBUF_C_DIR = lib/protobuf-c
+GIT_SUBMODULES += $(PROTOBUF_C_DIR)
+
+CFLAGS += -DMICROPY_PY_NETWORK_ESP_HOSTED=1
+CFLAGS_EXTMOD += -DMICROPY_PY_NETWORK_ESP_HOSTED=1
+INC += -I$(TOP)/$(ESP_HOSTED_DIR) -I$(TOP)/$(PROTOBUF_C_DIR)
+
+DRIVERS_SRC_C += $(addprefix $(ESP_HOSTED_DIR)/,\
+	esp_hosted_wifi.c \
+	esp_hosted_proto.c \
+	esp_hosted_netif.c \
+	esp_hosted_hal.c \
+	)
+
+DRIVERS_SRC_C += $(addprefix $(PROTOBUF_C_DIR)/,\
+	protobuf-c/protobuf-c.c \
+	)
+$(BUILD)/$(PROTOBUF_C_DIR)/%.o: CFLAGS += -Wno-unused-but-set-variable
+
+ifeq ($(MICROPY_PY_BLUETOOTH),1)
+DRIVERS_SRC_C += $(ESP_HOSTED_DIR)/esp_hosted_bthci.c
 endif
+endif # MICROPY_PY_NETWORK_ESP_HOSTED
 
 ################################################################################
 # bluetooth
