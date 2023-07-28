@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "py/gc.h"
+#include "py/mpthread.h"
 #include "py/runtime.h"
 
 #if MICROPY_DEBUG_VALGRIND
@@ -112,7 +113,7 @@
 #define FTB_CLEAR(area, block) do { area->gc_finaliser_table_start[(block) / BLOCKS_PER_FTB] &= (~(1 << ((block) & 7))); } while (0)
 #endif
 
-#if MICROPY_PY_THREAD && !MICROPY_PY_THREAD_GIL
+#if GC_USE_GLOBAL_MUTEX
 #define GC_ENTER() mp_thread_mutex_lock(&MP_STATE_MEM(gc_mutex), 1)
 #define GC_EXIT() mp_thread_mutex_unlock(&MP_STATE_MEM(gc_mutex))
 #else
@@ -195,7 +196,7 @@ void gc_init(void *start, void *end) {
     MP_STATE_MEM(gc_alloc_amount) = 0;
     #endif
 
-    #if MICROPY_PY_THREAD && !MICROPY_PY_THREAD_GIL
+    #if GC_USE_GLOBAL_MUTEX
     mp_thread_mutex_init(&MP_STATE_MEM(gc_mutex));
     #endif
 }
@@ -587,6 +588,7 @@ void gc_info(gc_info_t *info) {
 }
 
 void *gc_alloc(size_t n_bytes, unsigned int alloc_flags) {
+    bool allow_gc = true;
     bool has_finaliser = alloc_flags & GC_ALLOC_FLAG_HAS_FINALISER;
     size_t n_blocks = ((n_bytes + BYTES_PER_BLOCK - 1) & (~(BYTES_PER_BLOCK - 1))) / BYTES_PER_BLOCK;
     DEBUG_printf("gc_alloc(" UINT_FMT " bytes -> " UINT_FMT " blocks)\n", n_bytes, n_blocks);
@@ -596,8 +598,17 @@ void *gc_alloc(size_t n_bytes, unsigned int alloc_flags) {
         return NULL;
     }
 
+#if MICROPY_TRACKED_ALLOC && MICROPY_PY_THREAD_GIL
+    // If tracked alloc and threading is on, need to allow for the possibility
+    // that we're being called from a non-Python thread. Which is fine, except
+    // we can't GC here as we don't hold the GIL. We can't try to acquire the
+    // GIL here, as may deadlock with another thread that is holding the GIL and
+    // blocked on this thread.
+    allow_gc = mp_thread_get_state() != NULL;
+#endif
+
     // check if GC is locked
-    if (MP_STATE_THREAD(gc_lock_depth) > 0) {
+    if (allow_gc && MP_STATE_THREAD(gc_lock_depth) > 0) {
         return NULL;
     }
 
@@ -608,13 +619,14 @@ void *gc_alloc(size_t n_bytes, unsigned int alloc_flags) {
     size_t end_block;
     size_t start_block;
     size_t n_free;
-    int collected = !MP_STATE_MEM(gc_auto_collect_enabled);
+
+    allow_gc = allow_gc && MP_STATE_MEM(gc_auto_collect_enabled);
 
     #if MICROPY_GC_ALLOC_THRESHOLD
-    if (!collected && MP_STATE_MEM(gc_alloc_amount) >= MP_STATE_MEM(gc_alloc_threshold)) {
+    if (allow_gc && MP_STATE_MEM(gc_alloc_amount) >= MP_STATE_MEM(gc_alloc_threshold)) {
         GC_EXIT();
         gc_collect();
-        collected = 1;
+        allow_gc = false;
         GC_ENTER();
     }
     #endif
@@ -653,12 +665,12 @@ void *gc_alloc(size_t n_bytes, unsigned int alloc_flags) {
 
         GC_EXIT();
         // nothing found!
-        if (collected) {
+        if (!allow_gc) {
             return NULL;
         }
         DEBUG_printf("gc_alloc(" UINT_FMT "): no free mem, triggering GC\n", n_bytes);
         gc_collect();
-        collected = 1;
+        allow_gc = false;
         GC_ENTER();
     }
 
@@ -745,7 +757,14 @@ void *gc_alloc_with_finaliser(mp_uint_t n_bytes) {
 // force the freeing of a piece of memory
 // TODO: freeing here does not call finaliser
 void gc_free(void *ptr) {
-    if (MP_STATE_THREAD(gc_lock_depth) > 0) {
+    bool python_thread = true;
+
+    // Caller may be a non-Python thread, see comment in gc_alloc
+#if MICROPY_TRACKED_ALLOC && MICROPY_PY_THREAD_GIL
+    python_thread = mp_thread_get_state() != NULL;
+#endif
+
+    if (python_thread && MP_STATE_THREAD(gc_lock_depth) > 0) {
         // Cannot free while the GC is locked. However free is an optimisation
         // to reclaim the memory immediately, this means it will now be left
         // until the next collection.

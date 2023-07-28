@@ -54,6 +54,7 @@
 #define MICROPY_USE_INTERNAL_ERRNO          (0) // errno.h from xtensa-esp32-elf/sys-include/sys
 #define MICROPY_USE_INTERNAL_PRINTF         (0) // ESP32 SDK requires its own printf
 #define MICROPY_SCHEDULER_DEPTH             (8)
+#define MICROPY_TRACKED_ALLOC               (1) // allow C code to malloc from Python heap
 #define MICROPY_VFS                         (1)
 
 // control over Python builtins

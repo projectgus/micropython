@@ -56,6 +56,7 @@ list(APPEND MICROPY_SOURCE_PORT
     usb.c
     usb_serial_jtag.c
     gccollect.c
+    heap.c
     mphalport.c
     fatfs_port.c
     help.c
@@ -200,6 +201,21 @@ endforeach()
 
 # Include the main MicroPython cmake rules.
 include(${MICROPY_DIR}/py/mkrules.cmake)
+
+if (NOT CONFIG_HEAP_TRACING)
+    # Wrap the ESP-IDF heap_caps_* functions at link time, to allow ESP-IDF to allocate
+    # memory from the MicroPython heap if the ESP-IDF heap is full
+    foreach(wrap_sym
+            heap_caps_malloc heap_caps_realloc heap_caps_calloc heap_caps_free
+            heap_caps_malloc_default heap_caps_realloc_default
+        )
+        target_link_libraries(${MICROPY_TARGET} -Wl,--wrap=${wrap_sym})
+    endforeach()
+else ()
+    # CONFIG_HEAP_TRACING also uses --wrap on the allocator symbols, and thankfully ld doesn't
+    # allow double-wrapping any symbols!
+    warning("ESP-IDF Heap tracing disables alllocating ESP-IDF buffers from Micropython heap")
+endif()
 
 # Generate source files for named pins (requires mkrules.cmake for MICROPY_GENHDR_DIR).
 
