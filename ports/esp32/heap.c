@@ -38,9 +38,6 @@
 // Start and end of the MicroPython heap
 void *mp_task_heap, *mp_task_heap_end;
 
-// Capability flags used to allocate the heap
-#define ALLOC_HEAP_CAPS (MALLOC_CAP_DEFAULT)
-
 #define PREFER_PSRAM_THRESH 1024
 
 // The actual caps used to allocate the python heap
@@ -67,6 +64,16 @@ STATIC inline bool ptr_in_py_heap(void *ptr)
 STATIC inline bool caps_for_py_heap(uint32_t caps)
 {
     return (caps & py_heap_caps) == caps;
+}
+
+// Return true if the caller is running in a Python thread, and therefore
+// expected to hold the GIL.
+//
+// Locking in the context of non-Python callers (either by acquiring GIL, or a
+// global mutex lock) is prone to creating deadlocks with ESP-IDF tasks.
+STATIC inline bool is_python_thread(void)
+{
+    return py_heap_caps != 0 && mp_thread_get_state() != NULL;
 }
 
 // Return the full set of capabilities for a particular RAM address.
@@ -109,11 +116,27 @@ void mp_alloc_heap(void)
     // less some overhead for heap metadata.
     //
     // When SPIRAM is enabled, this will allocate from SPIRAM.
-    const size_t HEAP_OVERHEAD = 256;
-    size_t mp_task_heap_size = heap_caps_get_largest_free_block(ALLOC_HEAP_CAPS) - HEAP_OVERHEAD;
-    mp_task_heap = __real_heap_caps_malloc(mp_task_heap_size, ALLOC_HEAP_CAPS);
+    size_t mp_task_heap_size = 0;
+    uint32_t caps;
+#if CONFIG_SPIRAM
+    // Even if enabled in config, MP will boot without PSRAM if it wasn't found
+    mp_task_heap_size = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+    if (mp_task_heap_size != 0) {
+        caps = MALLOC_CAP_SPIRAM;
+        mp_task_heap_size -= 64; // Allow for heap metadata
+    }
+#endif
+
+    if (mp_task_heap_size == 0) {
+        caps = MALLOC_CAP_DEFAULT;
+        mp_task_heap_size = heap_caps_get_largest_free_block(caps);
+        // Internal RAM has to shared between Python and other FreeRTOS tasks
+        mp_task_heap_size /= 2;
+    }
+
+    mp_task_heap = __real_heap_caps_malloc(mp_task_heap_size, caps);
     mp_task_heap_end = mp_task_heap + mp_task_heap_size;
-    py_heap_caps = caps_for_addr((intptr_t)mp_task_heap);
+    py_heap_caps = caps_for_addr((intptr_t)mp_task_heap); // Complete caps of this region
 
     //printf("Heap allocated at %p size %zu caps 0x%"PRIx32"\n", mp_task_heap, mp_task_heap_size, py_heap_caps);
 }
@@ -121,16 +144,16 @@ void mp_alloc_heap(void)
 IRAM_ATTR void *__wrap_heap_caps_malloc(size_t size, uint32_t caps)
 {
     void *result = NULL;
-    bool py_first = false;
+    bool try_py_heap = is_python_thread() && caps_for_py_heap(caps);
 
     #ifdef CONFIG_SPIRAM
-    if (size > PREFER_PSRAM_THRESH && caps_for_py_heap(caps)) {
+    if (try_py_heap && (py_heap_caps & MALLOC_CAP_SPIRAM) && size > PREFER_PSRAM_THRESH) {
         // TODO: check if calls to calloc() end up here, wasteful to have to zero buffer twice
         result = m_tracked_calloc(1, size);
         if (result) {
             return result;
         }
-        py_first = true;
+        try_py_heap = false; // Don't try again
     }
     #endif
 
@@ -138,8 +161,12 @@ IRAM_ATTR void *__wrap_heap_caps_malloc(size_t size, uint32_t caps)
         result = __real_heap_caps_malloc(size, caps);
     }
 
-    if (!py_first && result == NULL && caps_for_py_heap(caps)) {
+    if (result == NULL && try_py_heap) {
         result = m_tracked_calloc(1, size);
+    }
+
+    if (result == NULL) {
+        printf("malloc fail %u 0x%"PRIx32"\n", size, caps);
     }
 
     return result;
@@ -148,15 +175,15 @@ IRAM_ATTR void *__wrap_heap_caps_malloc(size_t size, uint32_t caps)
 IRAM_ATTR void *__wrap_heap_caps_calloc(size_t nmemb, size_t size, uint32_t caps)
 {
     void *result = NULL;
-    bool py_first = false;
+    bool try_py_heap = is_python_thread() && caps_for_py_heap(caps);
 
     #ifdef CONFIG_SPIRAM
-    if (size > PREFER_PSRAM_THRESH && caps_for_py_heap(caps)) {
+    if (try_py_heap && (py_heap_caps & MALLOC_CAP_SPIRAM) && size > PREFER_PSRAM_THRESH) {
         result = m_tracked_calloc(nmemb, size);
         if (result) {
             return result;
         }
-        py_first = true;
+        try_py_heap = false; // Don't try again
     }
     #endif
 
@@ -164,8 +191,13 @@ IRAM_ATTR void *__wrap_heap_caps_calloc(size_t nmemb, size_t size, uint32_t caps
         result = __real_heap_caps_calloc(nmemb, size, caps);
     }
 
-    if (!py_first && result == NULL && caps_for_py_heap(caps)) {
+    if (result == NULL && try_py_heap) {
         result = m_tracked_calloc(nmemb, size);
+    }
+
+
+    if (result == NULL) {
+        printf("calloc fail %u,%u 0x%"PRIx32"\n", nmemb, size, caps);
     }
 
     return result;
@@ -196,7 +228,16 @@ IRAM_ATTR void *__wrap_heap_caps_realloc( void *ptr, size_t size, uint32_t caps)
 IRAM_ATTR void __wrap_heap_caps_free( void *ptr)
 {
     if (ptr_in_py_heap(ptr)) {
-        m_tracked_free(ptr);
+        if (!is_python_thread()) {
+            // This condition may happen if a Python thread allocated a pointer
+            // but then passed it to a non-Python task
+
+            // TODO: Add m_tracked_mark_free() that only removes item from the LL, no actual freeing
+            // (currently these pointers leak...)
+            return;
+        } else {
+            m_tracked_free(ptr);
+        }
     } else {
         __real_heap_caps_free(ptr);
     }

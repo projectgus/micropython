@@ -28,7 +28,6 @@
 
 #include <stdint.h>
 
-#include "py/gc.h"
 #include "py/mpconfig.h"
 #include "py/mpthread.h"
 #include "py/misc.h"
@@ -131,7 +130,7 @@ typedef struct _mp_state_mem_t {
     size_t gc_collected;
     #endif
 
-    #if GC_USE_GLOBAL_MUTEX
+    #if MICROPY_PY_THREAD && !MICROPY_PY_THREAD_GIL
     // This is a global mutex used to make the GC thread-safe.
     mp_thread_mutex_t gc_mutex;
     #endif

@@ -30,12 +30,6 @@
 #include <stddef.h>
 #include "py/mpprint.h"
 
-// GC needs its own mutex in cases where threading is enabled and there is no GIL, or
-// tracked alloc allows non-Python threads to call in here.
-//
-// In other cases, either the GIL or single-threadedness should be enough.
-#define GC_USE_GLOBAL_MUTEX (MICROPY_PY_THREAD && (!MICROPY_PY_THREAD_GIL || MICROPY_TRACKED_ALLOC))
-
 void gc_init(void *start, void *end);
 
 #if MICROPY_GC_SPLIT_HEAP
