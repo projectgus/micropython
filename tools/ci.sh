@@ -249,6 +249,7 @@ function ci_qemu_arm_build {
 
 function ci_renesas_ra_setup {
     ci_gcc_arm_setup
+    sudo apt-get install protobuf-compiler
 }
 
 function ci_renesas_ra_board_build {

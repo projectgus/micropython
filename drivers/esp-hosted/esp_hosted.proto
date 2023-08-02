@@ -1,6 +1,10 @@
 /* Copyright (C) 2015-2023 Espressif Systems (Shanghai) PTE LTD */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/* This file is sourced from
+   https://github.com/espressif/esp-hosted/blob/master/esp_hosted_fg/common/proto/esp_hosted_config.proto
+*/
+
 syntax = "proto3";
 
 /* Enums similar to ESP IDF */

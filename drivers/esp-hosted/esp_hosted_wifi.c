@@ -43,8 +43,9 @@
 #include "shared/netutils/netutils.h"
 #include "shared/netutils/dhcpserver.h"
 
+#include "esp_hosted.pb-c.h"
+
 #include "esp_hosted_hal.h"
-#include "esp_hosted_proto.h"
 #include "esp_hosted_stack.h"
 #include "esp_hosted_netif.h"
 #include "esp_hosted_wifi.h"
@@ -73,6 +74,57 @@ static void esp_hosted_macstr_to_bytes(const uint8_t *mac_str, size_t mac_len, u
             *mac_out++ = byte;
             byte = 0;
         }
+    }
+}
+
+// to avoid bleeding the protocol buffer API into the public interface, convert esp_hosted_security_t
+// to/from CtrlWifiSecProt here.
+
+static esp_hosted_security_t sec_prot_to_hosted_security(CtrlWifiSecProt sec_prot)
+{
+    switch (sec_prot) {
+    case CTRL__WIFI_SEC_PROT__Open:
+        return ESP_HOSTED_SEC_OPEN;
+    case CTRL__WIFI_SEC_PROT__WEP:
+        return ESP_HOSTED_SEC_WEP;
+    case CTRL__WIFI_SEC_PROT__WPA_PSK:
+        return ESP_HOSTED_SEC_WPA_PSK;
+    case CTRL__WIFI_SEC_PROT__WPA2_PSK:
+        return ESP_HOSTED_SEC_WPA2_PSK;
+    case CTRL__WIFI_SEC_PROT__WPA_WPA2_PSK:
+        return ESP_HOSTED_SEC_WPA_WPA2_PSK;
+    case CTRL__WIFI_SEC_PROT__WPA2_ENTERPRISE:
+        return ESP_HOSTED_SEC_WPA2_ENTERPRISE;
+    case CTRL__WIFI_SEC_PROT__WPA3_PSK:
+        return ESP_HOSTED_SEC_WPA3_PSK;
+    case CTRL__WIFI_SEC_PROT__WPA2_WPA3_PSK:
+        return ESP_HOSTED_SEC_WPA2_WPA3_PSK;
+    default:
+        return ESP_HOSTED_SEC_INVALID;
+    }
+}
+
+static CtrlWifiSecProt hosted_security_to_sec_prot(esp_hosted_security_t hosted_security)
+{
+    switch (hosted_security) {
+    case ESP_HOSTED_SEC_OPEN:
+        return CTRL__WIFI_SEC_PROT__Open;
+    case ESP_HOSTED_SEC_WEP:
+        return CTRL__WIFI_SEC_PROT__WEP;
+    case ESP_HOSTED_SEC_WPA_PSK:
+        return CTRL__WIFI_SEC_PROT__WPA_PSK;
+    case ESP_HOSTED_SEC_WPA2_PSK:
+        return CTRL__WIFI_SEC_PROT__WPA2_PSK;
+    case ESP_HOSTED_SEC_WPA_WPA2_PSK:
+        return CTRL__WIFI_SEC_PROT__WPA_WPA2_PSK;
+    case ESP_HOSTED_SEC_WPA2_ENTERPRISE:
+        return CTRL__WIFI_SEC_PROT__WPA2_ENTERPRISE;
+    case ESP_HOSTED_SEC_WPA3_PSK:
+        return CTRL__WIFI_SEC_PROT__WPA3_PSK;
+    case ESP_HOSTED_SEC_WPA2_WPA3_PSK:
+        return CTRL__WIFI_SEC_PROT__WPA2_WPA3_PSK;
+    default:
+        abort(); // Range should be checked by the caller, making this unreachable
     }
 }
 
@@ -479,9 +531,14 @@ int esp_hosted_wifi_get_mac(int itf, uint8_t *mac) {
     return 0;
 }
 
-int esp_hosted_wifi_connect(const char *ssid, const char *bssid, uint8_t security, const char *key, uint16_t channel) {
+int esp_hosted_wifi_connect(const char *ssid, const char *bssid, esp_hosted_security_t security, const char *key, uint16_t channel) {
     CtrlMsgReqConnectAP ctrl_payload;
     ctrl_msg__req__connect_ap__init(&ctrl_payload);
+
+    if (security >= ESP_HOSTED_SEC_MAX) {
+        // Note: this argument is otherwise unused(!)
+        return -1;
+    }
 
     ctrl_payload.ssid = (char *)ssid;
     ctrl_payload.bssid = (char *)bssid;
@@ -495,14 +552,18 @@ int esp_hosted_wifi_connect(const char *ssid, const char *bssid, uint8_t securit
     return 0;
 }
 
-int esp_hosted_wifi_start_ap(const char *ssid, uint8_t security, const char *key, uint16_t channel) {
+int esp_hosted_wifi_start_ap(const char *ssid, esp_hosted_security_t security, const char *key, uint16_t channel) {
     CtrlMsgReqStartSoftAP ctrl_payload;
     ctrl_msg__req__start_soft_ap__init(&ctrl_payload);
+
+    if (security >= ESP_HOSTED_SEC_MAX) {
+        return -1;
+    }
 
     ctrl_payload.ssid = (char *)ssid;
     ctrl_payload.pwd = (char *)key;
     ctrl_payload.chnl = channel;
-    ctrl_payload.sec_prot = security;
+    ctrl_payload.sec_prot = hosted_security_to_sec_prot(security);
     ctrl_payload.max_conn = ESP_HOSTED_MAX_AP_CLIENTS;
     ctrl_payload.ssid_hidden = false;
     ctrl_payload.bw = CTRL__WIFI_BW__HT40;
@@ -584,7 +645,7 @@ int esp_hosted_wifi_netinfo(esp_hosted_netinfo_t *netinfo) {
     }
 
     netinfo->rssi = ctrl_msg->resp_get_ap_config->rssi;
-    netinfo->security = ctrl_msg->resp_get_ap_config->sec_prot;
+    netinfo->security = sec_prot_to_hosted_security(ctrl_msg->resp_get_ap_config->sec_prot);
     netinfo->channel = ctrl_msg->resp_get_ap_config->chnl;
 
     ProtobufCBinaryData ssid = ctrl_msg->resp_get_ap_config->ssid;
@@ -616,7 +677,7 @@ int esp_hosted_wifi_scan(esp_hosted_scan_callback_t scan_callback, void *arg, ui
     for (int i = 0; i < rp->count; i++) {
         esp_hosted_scan_result_t result = {0};
         result.rssi = rp->entries[i]->rssi;
-        result.security = rp->entries[i]->sec_prot;
+        result.security = sec_prot_to_hosted_security(rp->entries[i]->sec_prot);
         result.channel = rp->entries[i]->chnl;
         if (rp->entries[i]->bssid.data) {
             esp_hosted_macstr_to_bytes(rp->entries[i]->bssid.data, rp->entries[i]->bssid.len, result.bssid);

@@ -29,7 +29,8 @@
 #ifndef MICROPY_INCLUDED_DRIVERS_ESP_HOSTED_WIFI_H
 #define MICROPY_INCLUDED_DRIVERS_ESP_HOSTED_WIFI_H
 
-#include "esp_hosted_proto.h"
+#include <stdint.h>
+#include <stdlib.h>
 
 #define ESP_HOSTED_IPV4_ADDR_LEN    (4)
 #define ESP_HOSTED_MAC_ADDR_LEN     (6)
@@ -56,14 +57,15 @@ typedef enum {
 
 typedef enum {
     ESP_HOSTED_SEC_INVALID = -1,
-    ESP_HOSTED_SEC_OPEN = CTRL__WIFI_SEC_PROT__Open,
-    ESP_HOSTED_SEC_WEP = CTRL__WIFI_SEC_PROT__WEP,
-    ESP_HOSTED_SEC_WPA_PSK = CTRL__WIFI_SEC_PROT__WPA_PSK,
-    ESP_HOSTED_SEC_WPA2_PSK = CTRL__WIFI_SEC_PROT__WPA2_PSK,
-    ESP_HOSTED_SEC_WPA_WPA2_PSK = CTRL__WIFI_SEC_PROT__WPA_WPA2_PSK,
-    ESP_HOSTED_SEC_WPA2_ENTERPRISE = CTRL__WIFI_SEC_PROT__WPA2_ENTERPRISE,
-    ESP_HOSTED_SEC_WPA3_PSK = CTRL__WIFI_SEC_PROT__WPA3_PSK,
-    ESP_HOSTED_SEC_WPA2_WPA3_PSK= CTRL__WIFI_SEC_PROT__WPA2_WPA3_PSK,
+    ESP_HOSTED_SEC_OPEN,
+    ESP_HOSTED_SEC_WEP,
+    ESP_HOSTED_SEC_WPA_PSK,
+    ESP_HOSTED_SEC_WPA2_PSK,
+    ESP_HOSTED_SEC_WPA_WPA2_PSK,
+    ESP_HOSTED_SEC_WPA2_ENTERPRISE,
+    ESP_HOSTED_SEC_WPA3_PSK,
+    ESP_HOSTED_SEC_WPA2_WPA3_PSK,
+    ESP_HOSTED_SEC_MAX,
 } esp_hosted_security_t;
 
 typedef struct {
@@ -75,7 +77,7 @@ typedef struct {
 
 typedef struct {
     int32_t rssi;
-    uint8_t security;
+    esp_hosted_security_t security;
     uint8_t channel;
     char ssid[ESP_HOSTED_MAX_SSID_LEN];
     uint8_t bssid[ESP_HOSTED_MAC_ADDR_LEN];
@@ -83,7 +85,7 @@ typedef struct {
 
 typedef struct {
     int32_t rssi;
-    uint8_t security;
+    esp_hosted_security_t security;
     uint8_t channel;
     char ssid[ESP_HOSTED_MAX_SSID_LEN];
     uint8_t bssid[ESP_HOSTED_MAC_ADDR_LEN];
@@ -97,8 +99,8 @@ int esp_hosted_wifi_deinit(void);
 int esp_hosted_wifi_disable(uint32_t itf);
 void *esp_hosted_wifi_get_netif(uint32_t itf);
 int esp_hosted_wifi_get_mac(int itf, uint8_t *mac);
-int esp_hosted_wifi_connect(const char *ssid, const char *bssid, uint8_t security, const char *key, uint16_t channel);
-int esp_hosted_wifi_start_ap(const char *ssid, uint8_t security, const char *key, uint16_t channel);
+int esp_hosted_wifi_connect(const char *ssid, const char *bssid, esp_hosted_security_t security, const char *key, uint16_t channel);
+int esp_hosted_wifi_start_ap(const char *ssid, esp_hosted_security_t security, const char *key, uint16_t channel);
 int esp_hosted_wifi_disconnect(uint32_t itf);
 int esp_hosted_wifi_link_status(uint32_t itf);
 int esp_hosted_wifi_is_connected(uint32_t itf);
