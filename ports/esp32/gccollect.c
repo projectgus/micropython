@@ -83,10 +83,36 @@ void gc_collect(void) {
 
 #if MICROPY_GC_SPLIT_HEAP_AUTO
 
-// The largest new region that is available to become Python heap is the largest
-// free block in the ESP-IDF system heap.
-size_t gc_get_max_new_split(void) {
-    return heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+// Unless necessary to avoid a Python MemoryError,
+// try to reserve this much free system heap for ESP-IDF
+#define RESERVE_SYSTEM_HEAP (24 * 1024)
+
+size_t gc_get_max_new_split(size_t needed) {
+    multi_heap_info_t info = { 0 };
+    heap_caps_get_info(&info, MALLOC_CAP_DEFAULT);
+
+    // The largest new region that is available to become Python heap is the largest
+    // free block in the ESP-IDF system heap...
+    size_t max = info.largest_free_block;
+
+    if (max <= needed) {
+        return max;
+    }
+
+    // ... unless overall free heap is running low, in which case
+    // prefer to save some RAM for ESP-IDF unless it's needed.
+    if (info.total_free_bytes < max + RESERVE_SYSTEM_HEAP) {
+        if (max > needed + RESERVE_SYSTEM_HEAP) {
+            // Reserve some of the largest free block for the system. New Python
+            // heap area will still be big enough for 'needed'.
+            max -= RESERVE_SYSTEM_HEAP;
+        } else {
+            // Memory is really low, only allow Python exactly what it needs
+            max = needed;
+        }
+    }
+
+    return max;
 }
 
 #endif

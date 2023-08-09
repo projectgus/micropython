@@ -39,7 +39,12 @@ void gc_add(void *start, void *end);
 #if MICROPY_GC_SPLIT_HEAP_AUTO
 // Port must implement this function to return the maximum available block of
 // RAM to allocate a new heap area into using MP_PLAT_ALLOC_HEAP
-size_t gc_get_max_new_split(void);
+//
+// 'needed' is the number of bytes Python needs from the heap for the
+// currently failing allocation to succeed. This can be used to tweak the result
+// and allow Python heap to add more or less RAM. 'needed' will also have value
+// UINT_MAX when called from the mem_info() function, to test the maximum available.
+size_t gc_get_max_new_split(size_t needed);
 #endif // MICROPY_GC_SPLIT_HEAP_AUTO
 #endif // MICROPY_GC_SPLIT_HEAP
 

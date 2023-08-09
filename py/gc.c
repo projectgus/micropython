@@ -250,7 +250,7 @@ STATIC bool gc_try_add_heap(size_t failed_alloc) {
     // rounding up of partial block sizes.)
     size_t needed = failed_alloc + MAX(2048, failed_alloc * 13 / 512);
 
-    size_t avail = gc_get_max_new_split();
+    size_t avail = gc_get_max_new_split(needed);
 
     DEBUG_printf("gc_try_add_heap failed_alloc " UINT_FMT ", "
         "needed " UINT_FMT ", avail " UINT_FMT " bytes \n",
@@ -1160,7 +1160,7 @@ void gc_dump_info(const mp_print_t *print) {
     mp_printf(print, "GC: total: %u, used: %u, free: %u",
         (uint)info.total, (uint)info.used, (uint)info.free);
     #if MICROPY_GC_SPLIT_HEAP_AUTO
-    mp_printf(print, ", max new split: %u", (uint)gc_get_max_new_split());
+    mp_printf(print, ", max new split: %u", (uint)gc_get_max_new_split(UINT_MAX));
     #endif
     mp_printf(print, "\n No. of 1-blocks: %u, 2-blocks: %u, max blk sz: %u, max free sz: %u\n",
         (uint)info.num_1block, (uint)info.num_2block, (uint)info.max_block, (uint)info.max_free);
