@@ -27,6 +27,7 @@
 #include <stdlib.h>
 
 #include "py/mpconfig.h"
+#include "py/runtime.h"
 
 #if MICROPY_HW_ENABLE_USBDEV
 
@@ -36,7 +37,28 @@
 #include "device/usbd_pvt.h"
 #endif
 
+// Legacy TinyUSB task function wrapper, called by some ports from the interpreter hook
 void usbd_task(void) {
+    tud_task_ext(0, false);
+}
+
+// TinyUSB task function wrapper, as scheduled from the USB IRQ
+static void mp_usbd_task(mp_sched_node_t *node);
+
+#ifndef MP_USBD_IRQ_ATTRS
+// Optional port-specific function attributes
+#define MP_USBD_IRQ_ATTRS
+#endif
+
+// IRQ-safe function called by a port's USB interrupt to schedule the TinyUSB
+// thread mode "task" handler to run ASAP outside interrupt context.
+void MP_USBD_IRQ_ATTRS mp_usbd_schedule(void) {
+    static mp_sched_node_t usbd_task_node;
+    mp_sched_schedule_node(&usbd_task_node, mp_usbd_task);
+}
+
+static void mp_usbd_task(mp_sched_node_t *node) {
+    (void)node;
     tud_task_ext(0, false);
 }
 

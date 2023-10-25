@@ -87,6 +87,8 @@ int main(int argc, char **argv) {
     bi_decl(bi_program_feature("USB REPL"))
     #endif
     tusb_init();
+    // Add a second USBCTRL_IRQ handler to schedule a call to TinyUSB
+    irq_add_shared_handler(USBCTRL_IRQ, mp_usbd_schedule, PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY);
     #endif
 
     #if MICROPY_PY_THREAD
