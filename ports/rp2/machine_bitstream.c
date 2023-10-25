@@ -34,6 +34,8 @@
 
 #define MP_HAL_BITSTREAM_NS_OVERHEAD  (9)
 
+STATIC MP_ALWAYSINLINE void _systick_wait(uint32_t *start_ticks, uint32_t ns);
+
 void __time_critical_func(machine_bitstream_high_low)(mp_hal_pin_obj_t pin, uint32_t *timing_ns, const uint8_t *buf, size_t len) {
     uint32_t fcpu_mhz = mp_hal_get_cpu_freq() / 1000000;
     // Convert ns to clock ticks [high_time_0, period_0, high_time_1, period_1].
@@ -48,8 +50,6 @@ void __time_critical_func(machine_bitstream_high_low)(mp_hal_pin_obj_t pin, uint
         }
     }
     mp_hal_pin_output(pin);
-    // Enable the systick counter, source CPU clock.
-    systick_hw->csr = 5;
 
     uint32_t irq_state = mp_hal_quiet_timing_enter();
 
@@ -57,18 +57,29 @@ void __time_critical_func(machine_bitstream_high_low)(mp_hal_pin_obj_t pin, uint
         uint8_t b = buf[i];
         for (size_t j = 0; j < 8; ++j) {
             uint32_t *t = &timing_ns[b >> 6 & 2];
-            uint32_t start_ticks = systick_hw->cvr = SYSTICK_MAX;
+            uint32_t start_ticks = systick_hw->cvr;
             mp_hal_pin_high(pin);
-            while ((start_ticks - systick_hw->cvr) < t[0]) {
-            }
+            _systick_wait(&start_ticks, t[0]);
             b <<= 1;
             mp_hal_pin_low(pin);
-            while ((start_ticks - systick_hw->cvr) < t[1]) {
-            }
+            _systick_wait(&start_ticks, t[1]);
         }
     }
 
     mp_hal_quiet_timing_exit(irq_state);
+}
+
+STATIC MP_ALWAYSINLINE void _systick_wait(uint32_t *start_ticks, uint32_t ns) {
+    while (1) {
+        uint32_t cvr = systick_hw->cvr;
+        uint32_t elapsed = *start_ticks - cvr;
+        if (elapsed > *start_ticks) {
+            // CVR has reset to RVR value, so adjust the start point upwards to match
+            *start_ticks += systick_hw->rvr;
+        } else if (elapsed > ns) {
+            break;
+        }
+    }
 }
 
 #endif // MICROPY_PY_MACHINE_BITSTREAM

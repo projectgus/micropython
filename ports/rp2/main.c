@@ -94,6 +94,9 @@ int main(int argc, char **argv) {
     mp_thread_init();
     #endif
 
+    // Initialize SysTick for 1ms tick events and interrupt
+    SysTick_Config(mp_hal_get_cpu_freq() / 1000);
+
     // Start and initialise the RTC
     datetime_t t = {
         .year = 2021,
@@ -260,4 +263,12 @@ uint32_t rosc_random_u32(void) {
         value = value << 8 | rosc_random_u8(32);
     }
     return value;
+}
+
+// The default SysTick handler in pico-sdk is a breakpoint instruction
+// failing through to illegal exception, so replace it.
+void __time_critical_func(SysTick_Handler)(void)
+{
+    // Note: This handler does nothing, but it will wake the CPU
+    // from WFE every tick.
 }
