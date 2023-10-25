@@ -33,6 +33,7 @@
 
 #ifndef NO_QSTR
 #include "tusb.h" // TinyUSB is not available when running the string preprocessor
+#include "device/dcd.h"
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #endif
@@ -45,16 +46,18 @@ void usbd_task(void) {
 // TinyUSB task function wrapper, as scheduled from the USB IRQ
 static void mp_usbd_task(mp_sched_node_t *node);
 
-#ifndef MP_USBD_IRQ_ATTRS
-// Optional port-specific function attributes
-#define MP_USBD_IRQ_ATTRS
-#endif
+extern void __real_dcd_event_handler(dcd_event_t const *event, bool in_isr);
 
-// IRQ-safe function called by a port's USB interrupt to schedule the TinyUSB
-// thread mode "task" handler to run ASAP outside interrupt context.
-void MP_USBD_IRQ_ATTRS mp_usbd_schedule(void) {
+// If -Wl,--wrap=dcd_event_handler is passed to the linker, then this wrapper
+// will be called and allows MicroPython to schedule the TinyUSB task when
+// dcd_event_handler() is called from an ISR.
+TU_ATTR_FAST_FUNC void __wrap_dcd_event_handler(dcd_event_t const *event, bool in_isr) {
     static mp_sched_node_t usbd_task_node;
-    mp_sched_schedule_node(&usbd_task_node, mp_usbd_task);
+
+    __real_dcd_event_handler(event, in_isr);
+    if (usbd_task_node.callback == NULL) {
+        mp_sched_schedule_node(&usbd_task_node, mp_usbd_task);
+    }
 }
 
 static void mp_usbd_task(mp_sched_node_t *node) {
