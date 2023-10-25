@@ -38,6 +38,11 @@
 #include "device/usbd_pvt.h"
 #endif
 
+#include "pico/stdlib.h"
+
+#define IO_DBG1 2
+#define IO_DBG2 3
+
 // Legacy TinyUSB task function wrapper, called by some ports from the interpreter hook
 void usbd_task(void) {
     tud_task_ext(0, false);
@@ -55,6 +60,15 @@ TU_ATTR_FAST_FUNC void __wrap_dcd_event_handler(dcd_event_t const *event, bool i
     static mp_sched_node_t usbd_task_node;
 
     __real_dcd_event_handler(event, in_isr);
+    static bool init;
+    if (MP_UNLIKELY(!init)) {
+        gpio_init(IO_DBG1);
+        gpio_set_dir(IO_DBG1, GPIO_OUT);
+        gpio_init(IO_DBG2);
+        gpio_set_dir(IO_DBG2, GPIO_OUT);
+        init = true;
+    }
+    gpio_put(IO_DBG2, !gpio_get(IO_DBG2));
     if (usbd_task_node.callback == NULL) {
         mp_sched_schedule_node(&usbd_task_node, mp_usbd_task);
     }
@@ -62,7 +76,10 @@ TU_ATTR_FAST_FUNC void __wrap_dcd_event_handler(dcd_event_t const *event, bool i
 
 static void mp_usbd_task(mp_sched_node_t *node) {
     (void)node;
+    gpio_put(IO_DBG1, 1);
     tud_task_ext(0, false);
+    gpio_put(IO_DBG1, 0);
 }
+
 
 #endif
