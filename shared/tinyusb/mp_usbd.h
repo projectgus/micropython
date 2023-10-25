@@ -29,8 +29,9 @@
 
 #include "py/obj.h"
 
-// Call instead of tud_task()
-void mp_usbd_task(void);
+// Port can call this function from an IRQ context in order to schedule
+// the TinyUSBD task handler.
+void mp_usbd_schedule(void);
 
 // Function to be implemented in port code.
 // Can write a string up to MICROPY_HW_USB_DESC_STR_MAX characters long, plus terminating byte.
