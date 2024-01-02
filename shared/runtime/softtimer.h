@@ -73,12 +73,14 @@ static inline void soft_timer_reinsert(soft_timer_entry_t *entry, uint32_t initi
 #if !defined(MICROPY_SOFT_TIMER_TICKS_MS)
 // IF MICROPY_SOFT_TIMER_TICKS_MS is not defined then the port must provide the
 // following timer functions:
+// - soft_timer_init() to initialize soft timer hardware as needed.
 // - soft_timer_get_ms() must return a 32-bit millisecond counter that wraps around.
 // - soft_timer_schedule_at_ms(ticks_ms) must schedule a callback of soft_timer_handler()
 //   when the above millisecond counter reaches the given ticks_ms value.  If ticks_ms
 //   is behind the current counter (using int32_t arithmetic) then the callback should
 //   be scheduled immediately.  The callback of soft_timer_handler() should be made at
 //   pend-SV IRQ level, or equivalent.
+void soft_timer_init(void);
 uint32_t soft_timer_get_ms(void);
 void soft_timer_schedule_at_ms(uint32_t ticks_ms);
 #endif
