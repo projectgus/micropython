@@ -261,7 +261,8 @@ extern const struct _mp_obj_type_t mod_network_nic_type_wiznet5k;
         if ((TIMEOUT_MS) < 0) { \
             __wfe(); \
         } else { \
-            best_effort_wfe_or_timeout(make_timeout_time_ms(TIMEOUT_MS)); \
+            void mp_wfe_or_timeout(uint32_t timeout_ms); \
+            mp_wfe_or_timeout(TIMEOUT_MS); \
         } \
     } while (0)
 

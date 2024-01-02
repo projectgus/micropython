@@ -198,17 +198,32 @@ mp_uint_t mp_hal_stdout_tx_strn(const char *str, mp_uint_t len) {
     return did_write ? ret : 0;
 }
 
-void mp_hal_delay_ms(mp_uint_t ms) {
-    absolute_time_t t = make_timeout_time_ms(ms);
-    do {
+void mp_hal_delay_us(mp_uint_t us) {
+    // Until soft timer supports microseconds, avoid calling sleep_us() and
+    // invoking the alarm pool by splitting long sleeps into an optional longer
+    // sleep and a shorter busy-wait
+    uint64_t end = time_us_64() + us;
+    if (us > 1000) {
+        mp_hal_delay_ms(us / 1000);
+    }
+    while (time_us_64() < end) {
         mp_event_handle_nowait();
-    } while (!best_effort_wfe_or_timeout(t));
+    }
+}
+
+void mp_hal_delay_ms(mp_uint_t ms) {
+    mp_uint_t start = mp_hal_ticks_ms();
+    mp_uint_t elapsed = 0;
+    do {
+        mp_event_wait_ms(ms - elapsed);
+        elapsed = mp_hal_ticks_ms() - start;
+    } while (elapsed < ms);
 }
 
 void mp_hal_time_ns_set_from_rtc(void) {
     // Delay at least one RTC clock cycle so it's registers have updated with the most
     // recent time settings.
-    sleep_us(23);
+    mp_hal_delay_us(23);
 
     // Sample RTC and time_us_64() as close together as possible, so the offset
     // calculated for the latter can be as accurate as possible.
@@ -291,4 +306,19 @@ void soft_timer_init(void) {
     // soft timer IRQ handler has to run at PendSV priority. adjusting priority here so we don't
     // need to trigger PendSV the timer IRQ.
     NVIC_SetPriority(TIMER_IRQ_0_IRQn + MICROPY_HW_SOFT_TIMER_ALARM_NUM, PICO_LOWEST_IRQ_PRIORITY);
+}
+
+void mp_wfe_or_timeout(uint32_t timeout_ms) {
+    soft_timer_entry_t timer;
+
+    soft_timer_static_init(&timer, SOFT_TIMER_MODE_ONE_SHOT, 0, NULL);
+
+    // Note the timer doesn't have an associated callback, it just exists to create a
+    // hardware interrupt to wake the CPU
+    soft_timer_insert(&timer, timeout_ms);
+
+    __wfe();
+
+    // Clean up the timer node if it's not already
+    soft_timer_remove(&timer);
 }

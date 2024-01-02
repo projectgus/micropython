@@ -52,9 +52,7 @@ void mp_thread_end_atomic_section(uint32_t);
 void mp_hal_set_interrupt_char(int c);
 void mp_hal_time_ns_set_from_rtc(void);
 
-static inline void mp_hal_delay_us(mp_uint_t us) {
-    sleep_us(us);
-}
+void mp_hal_delay_us(mp_uint_t us);
 
 static inline void mp_hal_delay_us_fast(mp_uint_t us) {
     busy_wait_us(us);
