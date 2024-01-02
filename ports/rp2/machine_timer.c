@@ -33,9 +33,10 @@
 #define TIMER_MODE_ONE_SHOT (0)
 #define TIMER_MODE_PERIODIC (1)
 
+STATIC struct alarm_pool *timer_pool;
+
 typedef struct _machine_timer_obj_t {
     mp_obj_base_t base;
-    struct alarm_pool *pool;
     alarm_id_t alarm_id;
     uint32_t mode;
     uint64_t delta_us; // for periodic mode
@@ -95,8 +96,16 @@ STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, size_t n_ar
         self->delta_us = 1;
     }
 
+    if (timer_pool == NULL) {
+        // Lazy initialise the alarm pool on first use
+        timer_pool = alarm_pool_create(
+            MICROPY_HW_MACHINE_TIMER_ALARM_NUM,
+            PICO_TIME_DEFAULT_ALARM_POOL_MAX_TIMERS
+            );
+    }
+
     self->callback = args[ARG_callback].u_obj;
-    self->alarm_id = alarm_pool_add_alarm_in_us(self->pool, self->delta_us, alarm_callback, self, true);
+    self->alarm_id = alarm_pool_add_alarm_in_us(timer_pool, self->delta_us, alarm_callback, self, true);
     if (self->alarm_id == -1) {
         mp_raise_OSError(MP_ENOMEM);
     }
@@ -107,7 +116,6 @@ STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, size_t n_ar
 STATIC mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     machine_timer_obj_t *self = m_new_obj_with_finaliser(machine_timer_obj_t);
     self->base.type = &machine_timer_type;
-    self->pool = alarm_pool_get_default();
     self->alarm_id = ALARM_ID_INVALID;
 
     // Get timer id (only soft timer (-1) supported at the moment)
@@ -134,7 +142,7 @@ STATIC mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args,
 STATIC mp_obj_t machine_timer_init(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args) {
     machine_timer_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     if (self->alarm_id != ALARM_ID_INVALID) {
-        alarm_pool_cancel_alarm(self->pool, self->alarm_id);
+        alarm_pool_cancel_alarm(timer_pool, self->alarm_id);
         self->alarm_id = ALARM_ID_INVALID;
     }
     return machine_timer_init_helper(self, n_args - 1, args + 1, kw_args);
@@ -144,7 +152,7 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_KW(machine_timer_init_obj, 1, machine_timer_init)
 STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in) {
     machine_timer_obj_t *self = MP_OBJ_TO_PTR(self_in);
     if (self->alarm_id != ALARM_ID_INVALID) {
-        alarm_pool_cancel_alarm(self->pool, self->alarm_id);
+        alarm_pool_cancel_alarm(timer_pool, self->alarm_id);
         self->alarm_id = ALARM_ID_INVALID;
     }
     return mp_const_none;

@@ -148,6 +148,7 @@
 #define MICROPY_PY_LWIP_SOCK_RAW                (MICROPY_PY_LWIP)
 
 #define MICROPY_HW_SOFT_TIMER_ALARM_NUM         (2)
+#define MICROPY_HW_MACHINE_TIMER_ALARM_NUM      (1)
 
 // fatfs configuration
 #define MICROPY_FATFS_ENABLE_LFN                (1)
