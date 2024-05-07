@@ -37,6 +37,7 @@
 #define MICROPY_PY_HEAPQ                   (1)
 #define MICROPY_PY_HASHLIB                 (1)
 #define MICROPY_PY_MACHINE                 (1)
+#define MICROPY_PY_MACHINE_INCLUDEFILE "ports/qemu-arm/modmachine.c" // Currently identical
 #define MICROPY_PY_MICROPYTHON_MEM_INFO    (1)
 #define MICROPY_USE_INTERNAL_PRINTF        (1)
 #define MICROPY_VFS                        (1)

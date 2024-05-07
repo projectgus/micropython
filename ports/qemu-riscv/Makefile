@@ -69,7 +69,6 @@ SRC_COMMON_C = \
 	interrupts.c \
 	startup.c \
 	uart.c \
-	modmachine.c \
 	shared/libc/string0.c \
 	shared/runtime/sys_stdio_mphal.c \
 
