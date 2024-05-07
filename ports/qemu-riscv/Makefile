@@ -33,15 +33,17 @@ ARCH=rv32imac
 else
 # Recent GCC versions explicitly require to declare extensions.
 ARCH=rv32imac_zicsr
+ARCH_LD=rv32imac  # Linker won't know all extensions
 endif
-AFLAGS = -mabi=$(ABI) -march=$(ARCH)
-CFLAGS += -mabi=$(ABI) -march=$(ARCH) -mcmodel=medany
+AFLAGS=-mabi=$(ABI) -march=$(ARCH)
+CFLAGS += $(AFLAGS) -mcmodel=medany
 CFLAGS += -DQEMU_SOC_VIRT
 ifeq ($(PICOLIBC),1)
 CFLAGS += -DUSE_PICOLIBC -D__TMP_FLT_EVAL_METHOD
 endif
+ARCH_LD?=$(ARCH)
 LDSCRIPT = virt.ld
-LDFLAGS += -T $(LDSCRIPT) -EL
+LDFLAGS += -mabi=$(ABI) -march=$(ARCH_LD) -T $(LDSCRIPT) -Wl,-EL
 SRC_BOARD_O = shared/runtime/gchelper_generic.o setjmp.o
 SRC_BOARD_O += entrypoint.o
 endif
@@ -54,6 +56,9 @@ CFLAGS += $(INC) -Wall -Wpointer-arith -Wdouble-promotion -Wfloat-conversion -We
 	 -ffunction-sections -fdata-sections
 CFLAGS += $(CFLAGS_EXTRA)
 
+# Multilib RISC-V toolchains need to be invoke linker via gcc's front end
+LD=$(CC)
+
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
 CFLAGS += -g
@@ -62,8 +67,7 @@ else
 COPT += -Os -DNDEBUG
 endif
 
-LDFLAGS += --gc-sections -Map=$(@:.elf=.map)
-LIBS = $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
+LDFLAGS += -Wl,--gc-sections -Wl,-Map=$(@:.elf=.map)
 
 SRC_COMMON_C = \
 	interrupts.c \

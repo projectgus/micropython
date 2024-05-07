@@ -89,7 +89,4 @@ int setvbuf(FILE *stream, char *buf, int mode, size_t size) {
 
 #if (USE_PICOLIBC)
 FILE *const stdout;
-#else
-struct _reent _port_impure_data;
-struct _reent *_impure_ptr = &_port_impure_data;
 #endif
