@@ -501,6 +501,13 @@ void mp_usbd_task_callback(mp_sched_node_t *node) {
 // Task function can be called manually to force processing of USB events
 // (mostly from USB-CDC serial port when blocking.)
 void mp_usbd_task(void) {
+    if (!mp_thread_is_main_thread()) {
+        // Avoid race by not running TinyUSB on other threads. It will run when
+        // the scheduler executes on the main thread.
+        mp_usbd_schedule_task();
+        return;
+    }
+
     if (in_usbd_task) {
         // If this exception triggers, it means a USB callback tried to do
         // something that itself became blocked on TinyUSB (most likely: read or
