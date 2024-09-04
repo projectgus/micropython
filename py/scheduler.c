@@ -210,9 +210,13 @@ MP_REGISTER_ROOT_POINTER(mp_sched_item_t sched_queue[MICROPY_SCHEDULER_DEPTH]);
 // Called periodically from the VM or from "waiting" code (e.g. sleep) to
 // process background tasks and pending exceptions (e.g. KeyboardInterrupt).
 void mp_handle_pending(bool raise_exc) {
+    #if MICROPY_ENABLE_VM_ABORT || MICROPY_ENABLE_SCHEDULER
+    bool is_main_thread = mp_thread_is_main_thread();
+    #endif
+
     // Handle pending VM abort.
     #if MICROPY_ENABLE_VM_ABORT
-    if (MP_STATE_VM(vm_abort) && mp_thread_is_main_thread()) {
+    if (MP_STATE_VM(vm_abort) && is_main_thread) {
         MP_STATE_VM(vm_abort) = false;
         if (raise_exc && nlr_get_abort() != NULL) {
             nlr_jump_abort();
@@ -234,10 +238,17 @@ void mp_handle_pending(bool raise_exc) {
         MICROPY_END_ATOMIC_SECTION(atomic_state);
     }
 
-    // Handle any pending callbacks.
+    // Handle any pending callbacks (main thread only).
     #if MICROPY_ENABLE_SCHEDULER
     if (MP_STATE_VM(sched_state) == MP_SCHED_PENDING) {
-        mp_sched_run_pending();
+        if (is_main_thread) {
+            mp_sched_run_pending();
+        } else {
+            // If necessary, bounce the GIL so pending
+            // callbacks can run on the main thread.
+            MP_THREAD_GIL_EXIT();
+            MP_THREAD_GIL_ENTER();
+        }
     }
     #endif
 }
