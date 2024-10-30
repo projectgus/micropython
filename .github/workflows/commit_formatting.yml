@@ -1,6 +1,6 @@
 name: Check commit message formatting
 
-on: [push, pull_request]
+on: [pull_request]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,7 +12,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: '100'
+        fetch-depth: 100
     - uses: actions/setup-python@v5
     - name: Check commit message formatting
-      run: source tools/ci.sh && ci_commit_formatting_run
+      # note: Default checkout is a generated merge commit between base and head,
+      # so need to work backwards to find the actual commit(s) included in the PR
+      run: |
+        source tools/ci.sh
+        BASE_SHA=${{ github.event.pull_request.base.sha }}
+        HEAD_SHA=${{ github.event.pull_request.head.sha }}
+        MERGE_BASE=$(git merge-base $BASE_SHA $HEAD_SHA)
+        ci_commit_formatting_run ${MERGE_BASE}..${HEAD_SHA}
