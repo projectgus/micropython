@@ -6,7 +6,7 @@ The MicroPython project
   <img src="https://raw.githubusercontent.com/micropython/micropython/master/logo/upython-with-micro.jpg" alt="MicroPython Logo"/>
 </p>
 
-This is really the MicroPython project, which aims to put an implementation
+This is really really the MicroPython project, which aims to put an implementation
 of Python 3.x on microcontrollers and small embedded systems.
 You can find the official website at [micropython.org](http://www.micropython.org).
 
