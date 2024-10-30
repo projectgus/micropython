@@ -172,6 +172,8 @@ int main(int argc, char **argv) {
         mod_network_lwip_init();
         #endif
 
+        mp_printf(&mp_plat_print, "OHAI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+
         // Execute _boot.py to set up the filesystem.
         #if MICROPY_VFS_FAT && MICROPY_HW_USB_MSC
         pyexec_frozen_module("_boot_fat.py", false);
