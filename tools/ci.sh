@@ -39,8 +39,18 @@ function ci_c_code_formatting_run {
 # commit formatting
 
 function ci_commit_formatting_run {
-    # commit range is passed as function argument
-    tools/verifygitlog.py -v "$1"
+    # Default GitHub Actions checkout for a PR is a generated merge commit where
+    # the parents are the head of base branch (i.e. master) and the head of the
+    # PR branch, respectively. Use these parents to find the merge-base (i.e.
+    # where the PR branch head was branched)
+    #
+    # (If necessary then fetch all refs to find the merge base, for very old
+    # branches.)
+    git merge-base HEAD^1 HEAD^2 || git fetch --unshallow --all origin
+    MERGE_BASE=$(git merge-base HEAD^1 HEAD^2)
+    HEAD=$(git rev-parse HEAD^2)
+    echo "Checking commits between merge base ${MERGE_BASE} and PR head ${HEAD}..."
+    tools/verifygitlog.py -v "${MERGE_BASE}..${HEAD}"
 }
 
 ########################################################################################

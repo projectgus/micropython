@@ -15,13 +15,4 @@ jobs:
         fetch-depth: 100
     - uses: actions/setup-python@v5
     - name: Check commit message formatting
-      # note: Default checkout is a generated merge commit between base and head,
-      # so need to work backwards to find the actual commit(s) included in the PR
-      run: |
-        source tools/ci.sh
-        git show HEAD
-        BASE_SHA=${{ github.event.pull_request.base.sha }}
-        HEAD_SHA=${{ github.event.pull_request.head.sha }}
-        MERGE_BASE=$(git merge-base $BASE_SHA $HEAD_SHA)
-        echo "MERGE_BASE $MERGE_BASE"
-        ci_commit_formatting_run ${MERGE_BASE}..${HEAD_SHA}
+      run: source tools/ci.sh && ci_commit_formatting_run
