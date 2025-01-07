@@ -71,81 +71,68 @@ For best results it is recommended to first erase the entire flash of your
 device before putting on new MicroPython firmware.
 
 Currently we only support esptool.py to copy across the firmware.  You can find
-this tool here: `<https://github.com/espressif/esptool/>`__, or install it
+this tool here: `<https://docs.espressif.com/projects/esptool/>`__, or install it
 using pip::
 
     pip install esptool
-
-Versions starting with 1.3 support both Python 2.7 and Python 3.4 (or newer).
-An older version (at least 1.2.1 is needed) works fine but will require Python
-2.7.
 
 Using esptool.py you can erase the flash with the command::
 
     esptool.py erase_flash
 
-And then deploy the new firmware using this command for original ESP32 and ESP32-S2 SoCs::
+.. note:: On Windows, the command may be named ``esptool`` not ``esptool.py``
+
+Then deploy the new firmware. Use this command for original ESP32 and ESP32-S2 SoCs::
 
     esptool.py --baud 460800 write_flash 0x1000 ESP32_BOARD_NAME-DATE-VERSION.bin
 
-And this command for all other SoCs (including ESP32-S3, ESP32-C3, and all newer chips)::
+Use this command for all other SoCs (including ESP32-S3, ESP32-C3, and all newer chips)::
 
-    esptool.py --baud 460800 write_flash 0x0 ESP32_BOARD_NAME-DATE-VERSION.bin
+    esptool.py --baud 460800 write_flash 0 ESP32_BOARD_NAME-DATE-VERSION.bin
 
-Notes:
+Replace ``ESP32_BOARD_NAME-DATE-VERSION.bin`` with the name of your firmware .bin file.
 
-* ``esptool.py`` will try to detect the serial port where your ESP32 is
-  connected. If this doesn't work, or you have multiple serial ports, then you
-  may need to manually specify the port by adding the ``--port`` option to the
-  start of the ``esptool.py`` command line. For example, ``esptool.py --port
-  /dev/ttyUSB0 <rest of line>`` for Linux or ``esptool.py --port COM4 <rest of
-  line>`` for Windows. PC
-* If you're unsure which command line to use, check the MicroPython download
-  page for your board. Each page shows an accurate ``esptool.py`` command line
-  example for that board and its SoC.
-* If you get errors part-way through the flashing process then try reducing the
-  baudrate by removing the ``--baud 460800`` argument.
-* The last argument on the command line is the filename of the firmware. It
-  should match the file that you have
+.. note:: If you're unsure which command line to use, check the `MicroPython
+  download page`_ for your board. Each download page shows an accurate command
+  line example for that board and its SoC.
 
 If the above commands run without error then MicroPython should be installed on
-your board!
+your board! If the command fails, see :ref:`esp32_troubleshooting_install` below.
 
 Serial prompt
 -------------
 
 Once you have the firmware on the device you can access the REPL (Python prompt)
-over UART0 (GPIO1=TX, GPIO3=RX), which might be connected to a USB-serial
-converter, depending on your board.  The baudrate is 115200.
+over either UART0, which might be connected to a USB-serial converter depending
+on your board, or the chip's built-in USB device. The baudrate is 115200.
 
 From here you can now follow the ESP8266 tutorial, because these two Espressif chips
 are very similar when it comes to using MicroPython on them.  The ESP8266 tutorial
 is found at :ref:`esp8266_tutorial` (but skip the Introduction section).
 
+.. _esp32_troubleshooting_install:
+
 Troubleshooting installation problems
 -------------------------------------
 
 If you experience problems during flashing or with running firmware immediately
-after it, here are troubleshooting recommendations:
+after flashing, here are some troubleshooting recommendations:
 
-* Be aware of and try to exclude hardware problems.  There are 2 common
-  problems: bad power source quality, and worn-out/defective FlashROM.
-  Speaking of power source, not just raw amperage is important, but also low
-  ripple and noise/EMI in general.  The most reliable and convenient power
-  source is a USB port.
+* Esptool will try to detect the serial port where your ESP32 is connected. If
+  this doesn't work, or you have multiple serial ports, then you may need to
+  manually specify the port by adding the ``--port`` option to the start of the
+  ``esptool.py`` command line. For example, ``esptool.py --port /dev/ttyUSB0
+  <rest of line>`` for Linux or ``esptool.py --port COM4 <rest of line>`` for
+  Windows.
+* If you get errors part-way through the flashing process then try reducing the
+  speed of data transfer by removing the ``--baud 460800`` argument.
+* Hardware problems can cause flashing to fail. There are two common problems:
+  bad power source quality, and defective hardware (especially very low cost
+  unbranded development boards). Speaking of power source, not just raw amperage
+  is important, but also low ripple and noise/EMI in general. The most reliable
+  and convenient power source is a USB port.
+* If you still experience problems with flashing the firmware then please also
+  refer to the `esptool Troubleshooting documentation`_.
 
-* The flashing instructions above use flashing speed of 460800 baud, which is
-  good compromise between speed and stability. However, depending on your
-  module/board, USB-UART converter, cables, host OS, etc., the above baud
-  rate may be too high and lead to errors. Try a more common 115200 baud
-  rate instead in such cases.
-
-* To catch incorrect flash content (e.g. from a defective sector on a chip),
-  add ``--verify`` switch to the commands above.
-
-* If you still experience problems with flashing the firmware please
-  refer to esptool.py project page, https://github.com/espressif/esptool
-  for additional documentation and a bug tracker where you can report problems.
-
-* If you are able to flash the firmware but the ``--verify`` option returns
-  errors even after multiple retries the you may have a defective FlashROM chip.
+.. _esptool Troubleshooting documentation: https://docs.espressif.com/projects/esptool/en/latest/esp32/troubleshooting.html
+.. _MicroPython download page: https://micropython.org/download/?port=esp32
