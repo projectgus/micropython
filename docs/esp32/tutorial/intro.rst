@@ -82,21 +82,31 @@ An older version (at least 1.2.1 is needed) works fine but will require Python
 
 Using esptool.py you can erase the flash with the command::
 
-    esptool.py --port /dev/ttyUSB0 erase_flash
+    esptool.py erase_flash
 
-And then deploy the new firmware using::
+And then deploy the new firmware using this command for original ESP32 and ESP32-S2 SoCs::
 
-    esptool.py --chip esp32 --port /dev/ttyUSB0 write_flash -z 0x1000 esp32-20180511-v1.9.4.bin
+    esptool.py --baud 460800 write_flash 0x1000 ESP32_BOARD_NAME-DATE-VERSION.bin
+
+And this command for all other SoCs (including ESP32-S3, ESP32-C3, and all newer chips)::
+
+    esptool.py --baud 460800 write_flash 0x0 ESP32_BOARD_NAME-DATE-VERSION.bin
 
 Notes:
 
-* You might need to change the "port" setting to something else relevant for your
-  PC
-* You may need to reduce the baudrate if you get errors when flashing
-  (eg down to 115200 by adding ``--baud 115200`` into the command)
-* For some boards with a particular FlashROM configuration you may need to
-  change the flash mode (eg by adding ``-fm dio`` into the command)
-* The filename of the firmware should match the file that you have
+* ``esptool.py`` will try to detect the serial port where your ESP32 is
+  connected. If this doesn't work, or you have multiple serial ports, then you
+  may need to manually specify the port by adding the ``--port`` option to the
+  start of the ``esptool.py`` command line. For example, ``esptool.py --port
+  /dev/ttyUSB0 <rest of line>`` for Linux or ``esptool.py --port COM4 <rest of
+  line>`` for Windows. PC
+* If you're unsure which command line to use, check the MicroPython download
+  page for your board. Each page shows an accurate ``esptool.py`` command line
+  example for that board and its SoC.
+* If you get errors part-way through the flashing process then try reducing the
+  baudrate by removing the ``--baud 460800`` argument.
+* The last argument on the command line is the filename of the firmware. It
+  should match the file that you have
 
 If the above commands run without error then MicroPython should be installed on
 your board!
