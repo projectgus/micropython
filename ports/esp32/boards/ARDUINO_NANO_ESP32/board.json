@@ -2,6 +2,7 @@
     "deploy": [
         "deploy.md"
     ],
+    "flash_offset": "0",
     "docs": "",
     "features": [
         "BLE",

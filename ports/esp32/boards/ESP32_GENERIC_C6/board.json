@@ -1,7 +1,8 @@
 {
     "deploy": [
-        "../deploy_c6.md"
+        "../deploy.md"
     ],
+    "flash_offset": "0",
     "docs": "",
     "features": [
         "BLE",

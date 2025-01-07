@@ -1,7 +1,9 @@
 {
     "deploy": [
-        "deploy.md"
+        "../deploy_flashmode.md",
+        "../deploy_nativeusb.md"
     ],
+    "flash_offset": "0x1000",
     "docs": "",
     "features": [
         "Battery Charging",

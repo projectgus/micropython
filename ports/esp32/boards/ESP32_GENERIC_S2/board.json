@@ -1,7 +1,8 @@
 {
     "deploy": [
-        "../deploy_s2.md"
+        "../deploy.md"
     ],
+    "flash_offset": "0x1000",
     "docs": "",
     "features": [
         "External Flash",
