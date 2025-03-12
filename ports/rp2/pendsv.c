@@ -28,6 +28,7 @@
 #include "py/mpconfig.h"
 #include "py/mpthread.h"
 #include "pendsv.h"
+#include "shared/runtime/softtimer.h"
 
 #if PICO_RP2040
 #include "RP2040.h"
@@ -53,8 +54,30 @@ void PendSV_Handler(void);
 // loop of mp_wfe_or_timeout(), where we don't want the CPU event bit to be set.
 static mp_thread_recursive_mutex_t pendsv_mutex;
 
+// Provide a static soft timer node as a cross-core trigger from CPU1 to CPU0 PendSV
+//
+// "If pendsv_schedule_dispatch() is only called from core0 then why is this needed?"
+// The reason is the following interleaving:
+//
+// core1 calls pendsv_suspend() - for example to queue a softtimer
+// core0 triggers PendSV
+// core0 PendSV_Handler sees it is suspended and exits to run later
+// core1 calls pendsv_resume() - sets core1_trigger which will fire on core0
+// core0 soft timer IRQ triggers PendSV on core0
+// core0 handles the PendSV that was triggered earlier
+soft_timer_entry_t core1_trigger;
+
 void pendsv_init(void) {
     mp_thread_recursive_mutex_init(&pendsv_mutex);
+    // Note we only support running PendSV IRQ on CPU0, so it's
+    // unconfigured on CPU1.
+    #if !defined(__riscv)
+    NVIC_SetPriority(PendSV_IRQn, IRQ_PRI_PENDSV);
+    #endif
+
+    // Note the timer doesn't have an associated callback, it just exists to create a
+    // hardware interrupt to wake CPU0
+    soft_timer_static_init(&core1_trigger, SOFT_TIMER_MODE_ONE_SHOT, 0, NULL);
 }
 
 void pendsv_suspend(void) {
@@ -71,6 +94,16 @@ void pendsv_resume(void) {
 
 static inline int pendsv_suspend_count(void) {
     return pendsv_mutex.mutex.enter_count;
+}
+
+static inline void pendsv_arm_trigger(void) {
+    if (get_core_num() == 0) {
+        SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+    } else {
+        // We want PendSV IRQ to only run on CPU0, so queue a soft timer interrupt
+        // (which will run on CPU0 and trigger a PendSV there)
+        soft_timer_reinsert(&core1_trigger, 0);
+    }
 }
 
 #else
@@ -97,6 +130,11 @@ static inline int pendsv_suspend_count(void) {
     return pendsv_lock;
 }
 
+static inline void pendsv_arm_trigger(void) {
+    assert(get_core_num() == 0);
+    SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+}
+
 #endif
 
 static inline void pendsv_resume_run_dispatch(void) {
@@ -114,11 +152,11 @@ static inline void pendsv_resume_run_dispatch(void) {
 void pendsv_schedule_dispatch(size_t slot, pendsv_dispatch_t f) {
     pendsv_dispatch_table[slot] = f;
     if (pendsv_suspend_count() == 0) {
-        #if PICO_ARM
         // There is a race here where other core calls pendsv_suspend() before
         // ISR can execute, but dispatch will happen later when other core
         // calls pendsv_resume().
-        SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+        #if PICO_ARM
+        pendsv_arm_trigger();
         #elif PICO_RISCV
         struct timespec ts;
         aon_timer_get_time(&ts);
@@ -133,6 +171,7 @@ void pendsv_schedule_dispatch(size_t slot, pendsv_dispatch_t f) {
 
 // PendSV interrupt handler to perform background processing.
 void PendSV_Handler(void) {
+    assert(get_core_num() == 0);
 
     #if MICROPY_PY_THREAD
     if (!mp_thread_recursive_mutex_lock(&pendsv_mutex, 0)) {
