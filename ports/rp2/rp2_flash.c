@@ -260,17 +260,23 @@ static mp_obj_t rp2_flash_writeblocks(size_t n_args, const mp_obj_t *args) {
         offset += mp_obj_get_int(args[3]);
     }
 
+    // If copying from SRAM, can write direct to flash.
+    // If copying from PSRAM/flash, use an SRAM buffer and write in chunks.
     #if MICROPY_HW_ENABLE_PSRAM
-    if ((uintptr_t)bufinfo.buf >= SRAM_BASE) {
-        // If copying from SRAM, write direct
+    bool write_direct = (uintptr_t)bufinfo.buf >= SRAM_BASE;
+    #else
+    bool write_direct = true;
     #endif
+
+    if (write_direct) {
+        // If copying from SRAM, write direct
         mp_uint_t atomic_state = begin_critical_flash_section();
         flash_range_program(self->flash_base + offset, bufinfo.buf, bufinfo.len);
         end_critical_flash_section(atomic_state);
         mp_event_handle_nowait();
+    }
     #if MICROPY_HW_ENABLE_PSRAM
-    } else {
-        // If copying from PSRAM/flash, use an SRAM buffer and write in chunks
+    else {
         size_t bytes_left = bufinfo.len;
         size_t bytes_offset = 0;
         static uint8_t copy_buffer[FLASH_PAGE_SIZE] = {0};
