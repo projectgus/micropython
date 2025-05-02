@@ -37,6 +37,10 @@
 typedef unsigned char byte;
 typedef unsigned int uint;
 
+#ifndef __has_builtin
+  #define __has_builtin(x) (0)
+#endif
+
 /** generic ops *************************************************/
 
 #ifndef MIN
@@ -374,26 +378,23 @@ static inline bool mp_check(bool value) {
 static inline uint32_t mp_popcount(uint32_t x) {
     return __popcnt(x);
 }
-#else
+#else // _MSC_VER
 #define mp_clz(x) __builtin_clz(x)
 #define mp_clzl(x) __builtin_clzl(x)
 #define mp_clzll(x) __builtin_clzll(x)
 #define mp_ctz(x) __builtin_ctz(x)
 #define mp_check(x) (x)
-#if defined __has_builtin
 #if __has_builtin(__builtin_popcount)
 #define mp_popcount(x) __builtin_popcount(x)
-#endif
-#endif
-#if !defined(mp_popcount)
+#else
 static inline uint32_t mp_popcount(uint32_t x) {
     x = x - ((x >> 1) & 0x55555555);
     x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
     x = (x + (x >> 4)) & 0x0F0F0F0F;
     return x * 0x01010101;
 }
-#endif
-#endif
+#endif // __has_builtin(__builtin_popcount)
+#endif // _MSC_VER
 
 // mp_int_t can be larger than long, i.e. Windows 64-bit, nan-box variants
 static inline uint32_t mp_clz_mpi(mp_int_t x) {
@@ -420,5 +421,42 @@ static inline uint32_t mp_clz_mpi(mp_int_t x) {
     }
     #endif
 }
+
+// Overflow-checked multiplication for long long
+#if __has_builtin(__builtin_smulll_overflow)
+#define mp_mul_ll_overflow __builtin_smulll_overflow
+#else
+inline static bool mp_mul_ll_overflow(long long int a, long long int b, long long int *res) {
+    bool overflow;
+
+    // Check for multiply overflow; see CERT INT32-C
+    if (x > 0) { // x is positive
+        if (y > 0) { // x and y are positive
+            if (x > (LLONG_MAX / y)) {
+                overflow = true;
+            }
+        } else { // x positive, y nonpositive
+            if (y < (LLONG_MIN / x)) {
+                overflow = true;
+            }
+        } // x positive, y nonpositive
+    } else { // x is nonpositive
+        if (y > 0) { // x is nonpositive, y is positive
+            if (x < (LLONG_MIN / y)) {
+                overflow = true;
+            }
+        } else { // x and y are nonpositive
+            if (x != 0 && y < (LLONG_MAX / x)) {
+                overflow = true;
+            }
+        } // End if x and y are nonpositive
+    } // End if x is nonpositive
+
+    // 'res' may alias a and/or b, so need to update after checks
+    *res = a * b;
+
+    return overflow;
+}
+#endif // __has_builtin(__builtin_smulll_overflow)
 
 #endif // MICROPY_INCLUDED_PY_MISC_H
