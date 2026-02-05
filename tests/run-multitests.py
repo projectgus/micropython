@@ -389,7 +389,12 @@ def run_test_on_instances(test_file, num_instances, instances):
                 if instance.is_finished():
                     continue
                 num_running += 1
-                out, err = instance.readline()
+                try:
+                    out, err = instance.readline()
+                except OSError as e:
+                    output[idx].append("Host error reading from instance: {}".format(e))
+                    error = True
+                    continue
                 if out is None and err is None:
                     if time.time() > last_read_time[idx] + INSTANCE_READ_TIMEOUT_S:
                         output[idx].append("TIMEOUT")
@@ -434,7 +439,10 @@ def run_test_on_instances(test_file, num_instances, instances):
 
     # Stop all instances
     for idx in range(num_instances):
-        instances[idx].stop()
+        try:
+            instances[idx].stop()
+        except OSError as e:
+            output[idx].append("Host failed to stop instance: {}".format(e))
 
     output_str = ""
     for idx, lines in enumerate(output):
