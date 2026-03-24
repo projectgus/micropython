@@ -80,7 +80,7 @@
 #endif
 #else
 
-#define CAN_MAX_FILTER              (28)
+#define CAN_MAX_FILTER_CAN1_2       (28)  // This limit is the max across CAN1+CAN2 shared indexing
 #define CAN_MAX_DATA_FRAME          (8)
 
 #define CAN_DEFAULT_PRESCALER       (100)
@@ -234,9 +234,27 @@ static mp_obj_t pyb_can_init_helper(pyb_can_obj_t *self, size_t n_args, const mp
     #else
     // Init filter banks for classic CAN.
     can2_start_bank = args[ARG_num_filter_banks].u_int;
-    int bank_offs = (self->can_id == 2) ? can2_start_bank : 0;
-    for (int f = 0; f < CAN_MAX_FILTER; f++) {
-        can_clearfilter(&self->can, f + bank_offs, can2_start_bank);
+    int filter_min, filter_max;
+    switch (self->can_id) {
+        #ifdef MICROPY_HW_CAN3_NAME
+        case 3: // CAN3 filter numbering is independent of 1+2
+            filter_min = 0;
+            filter_max = CAN_HW_MAX_FILTER;
+            break;
+        #endif
+        #ifdef MICROPY_HW_CAN2_NAME
+        case 2: // CAN2 filters run from can2_start_bank to the max
+            filter_min = can2_start_bank;
+            filter_max = CAN_MAX_FILTER_CAN1_2;
+            break;
+        #endif
+        default: // CAN1 filters run from 0 to can2_start_bank
+            filter_min = 0;
+            filter_max = can2_start_bank;
+            break;
+    }
+    for (int f = filter_min; f < filter_max; f++) {
+        can_clearfilter(&self->can, f, can2_start_bank);
     }
     #endif
 
