@@ -292,7 +292,7 @@ can now be accessed in Python just like any other builtin module, e.g.
 C Dynamic Memory Allocation
 ---------------------------
 
-MicroPython uses its own ":ref:`Python heap<heap>`" for dynamic allocation,
+MicroPython uses its own "Python heap" for `memorymanagement`,
 which is not the same as the "C heap" used by C library functions ``malloc()``,
 ``free()``, etc. Not every MicroPython port comes with a "C heap".
 
@@ -316,9 +316,7 @@ Python heap as C heap
 It may be practical for C code to call "Python heap" dynamic allocation
 functions such ``m_malloc()``, ``m_malloc0()`` and ``m_free()`` instead.
 
-Buffers allocated from the "Python heap" in this way are freed during a
-:ref:`soft_reset`. It's important to ensure any C static variables
-don't become "dangling pointers" after a soft reset.
+See `python_memory_from_c` for more information about this approach.
 
 .. _cxx_support:
 
