@@ -2,7 +2,8 @@
 ==========================================
 
 .. module:: gc
-   :synopsis: control the garbage collector
+   :synopsis: control the garbage collector which automatically frees frees
+              :ref:`heap memory <heap>`
 
 |see_cpython_module| :mod:`python:gc`.
 
@@ -64,3 +65,24 @@ Functions
       This function is a MicroPython extension. CPython has a similar
       function - ``set_threshold()``, but due to different GC
       implementations, its signature and semantics are different.
+
+Example
+-------
+
+.. code-block:: bash
+
+   >>> x = 5
+   >>> x
+   5
+   >>> import gc
+   >>> gc.mem_alloc()
+   1312
+   >>> gc.mem_free()
+   2071392
+   >>> gc.collect()
+   52
+   >>> gc.disable()
+   >>>
+   >>> gc.collect()
+   16
+   >>> gc.enable()
