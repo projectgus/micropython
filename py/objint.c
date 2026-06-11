@@ -315,42 +315,66 @@ char *mp_obj_int_formatted(char **buf, size_t *buf_size, size_t *fmt_size, mp_co
 #if MICROPY_LONGINT_IMPL == MICROPY_LONGINT_IMPL_MPZ
 
 static void mp_obj_int_buffer_overflow_check(mp_obj_t self_in, size_t nbytes, bool is_signed) {
+    assert(mp_obj_is_exact_type(self_in, &mp_type_int)); // checked by caller
+    const mp_obj_int_t *self = MP_OBJ_TO_PTR(self_in);
+    const mpz_t *mpz = &self->mpz;
+
+    if (!is_signed && mpz->neg) {
+        // Negative numbers never fit in an unsigned value
+        goto raise;
+    }
+
+    if (mpz->len == 0) {
+        return; // Zero can fit in any length (including nbytes==0)
+    }
+
+    // Find the most significant digit in mpz
+    size_t ms_dig_idx = mpz->len - 1;
+    mpz_dig_t ms_dig = mpz->dig[ms_dig_idx];
+
+    // Require most significant digit is non-zero
+    // (this invariant is maintained by mpn_remove_trailing_zeros)
+    assert(ms_dig != 0);
+
+    // Count the number of significant bytes in ms_dig, and note if
+    // the most significant bit of that byte is set.
+    bool high_bit_set = false;
+    int shift = 1;
+    mpz_dig_t shifted;
+    while ((shifted = ms_dig >> (shift * 8)) != 0) {
+        high_bit_set = shifted & 0x80;
+        shift++;
+    }
+
+    // Calculate the total number of bytes in mpz
+    size_t mpz_bytes = (ms_dig_idx * MPZ_DIG_SIZE / 8) + shift;
+
     if (is_signed) {
-        // edge = 1 << (nbytes * 8 - 1)
-        mp_obj_t edge = mp_binary_op(MP_BINARY_OP_INPLACE_LSHIFT,
-            mp_obj_new_int(1),
-            mp_obj_new_int(nbytes * 8 - 1));
-
-        // if self >= edge, we don't fit
-        if (mp_binary_op(MP_BINARY_OP_MORE_EQUAL, self_in, edge) == mp_const_true) {
-            goto raise;
+        if (high_bit_set) {
+            if (mpz->neg) {
+                // Special case for -(1<<mpz_bits) which is the same in 2s complement
+                if (ms_dig == 1UL << (MPZ_DIG_SIZE - 1)) {
+                    high_bit_set = false; // Ignore the high bit if all lower bytes are 0s
+                    for (size_t i = 0; i < ms_dig_idx; i++) {
+                        if (mpz->dig[i] != 0) {
+                            // At least one other bit is set, so the special case is missed
+                            high_bit_set = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
-
-        // edge = -edge
-        edge = mp_unary_op(MP_UNARY_OP_NEGATIVE, edge);
-
-        // if self < edge, we don't fit
-        if (mp_binary_op(MP_BINARY_OP_LESS, self_in, edge) == mp_const_true) {
-            goto raise;
-        }
-    } else {
-        if (mp_obj_int_sign(self_in) < 0) {
-            // Negative numbers never fit in an unsigned value
-            goto raise;
-        }
-
-        // edge = 1 << (nbytes * 8)
-        mp_obj_t edge = mp_binary_op(MP_BINARY_OP_INPLACE_LSHIFT,
-            mp_obj_new_int(1),
-            mp_obj_new_int(nbytes * 8));
-
-        // if self >= edge, we don't fit
-        if (mp_binary_op(MP_BINARY_OP_MORE_EQUAL, self_in, edge) == mp_const_true) {
-            goto raise;
+        // Otherwise, the high bit set on a positive number means it needs an extra byte when signed, or the high
+        // bit set on a negative number means it will need an extra byte after converting to 2s complement
+        if (high_bit_set) {
+            mpz_bytes += 1;
         }
     }
 
-    return;
+    if (mpz_bytes <= nbytes) {
+        return; // Will fit!
+    }
 
 raise:
     mp_raise_msg_varg(&mp_type_OverflowError, MP_ERROR_TEXT("value would overflow a %d byte buffer"), nbytes);

@@ -51,16 +51,21 @@ except OverflowError:
 print((-ib).to_bytes(20, "big", signed=True))
 print((ib * -ib).to_bytes(40, "big", signed=True))
 
-# case where an additional byte is needed for sign bit
-ib = (2**64) - 1
-print(ib.to_bytes(8, "little"))
+# cases where an additional byte is needed for sign bit
 
-ib *= -1
+MAX_U24 = (2 ** 24) - 1
+MAX_U32 = (2 ** 32) - 1
+MAX_U64 = (2 ** 64) - 1
 
-try:
-    print(ib.to_bytes(8, "little", signed=True))
-except OverflowError:
-    print("OverflowError")
-
-print(ib.to_bytes(9, "little", signed=True))
-print(ib.to_bytes(9, "big", signed=True))
+for (ib, nbytes) in ((-127, 1), (255, 1), (-255, 1), (65535, 2), (-65535, 2), (-65534, 2), (MAX_U24, 3), (-MAX_U24, 3), (1 - MAX_U24, 3),
+                     (MAX_U32, 4), (-MAX_U32, 4), (1 - MAX_U32, 4), (2 - MAX_U32, 4), (MAX_U64, 8), (-MAX_U64, 8), (1 -MAX_U64, 8), (2 - MAX_U64, 8),
+                     (2 * MAX_U64, 8), (-2 * MAX_U64, 8)):
+    print("ib", hex(ib), "nbytes", nbytes, ":")
+    for signed in False, True:
+        for endian in "little", "big":
+            for nbytes_offs in (-1, 0, 1):
+                try:
+                    as_bytes = ib.to_bytes(nbytes + nbytes_offs, endian, signed=signed)
+                except OverflowError:
+                    as_bytes = "OverflowError"
+                print(as_bytes, "signed", signed, "endian", endian, "nbytes_offs", nbytes_offs)
